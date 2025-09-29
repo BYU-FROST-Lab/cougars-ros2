@@ -4,13 +4,16 @@ from rclpy.node import Node
 from sensor_msgs.msg import FluidPressure
 from . import ms5837
 
+
 class PressurePublisher(Node):
     def __init__(self, sensor_model, node_name, bus, frame_id):
         super().__init__(node_name)
-        self.declare_parameter('sensor_type', sensor_model)
-        sensor_type = self.get_parameter('sensor_type').get_parameter_value().integer_value
+        self.declare_parameter("sensor_type", sensor_model)
+        sensor_type = (
+            self.get_parameter("sensor_type").get_parameter_value().integer_value
+        )
 
-        self.publisher_ = self.create_publisher(FluidPressure, 'pressure/data', 10)
+        self.publisher_ = self.create_publisher(FluidPressure, "pressure/data", 10)
 
         if sensor_type == 0:
             self.sensor = ms5837.MS5837_02BA(bus=bus)
@@ -41,13 +44,14 @@ class PressurePublisher(Node):
             self.get_logger().error("Sensor read failed!")
             rclpy.shutdown()
 
+
 def main():
     rclpy.init()
     node = None
     node2 = None
     try:
-        node = PressurePublisher(0, 'pressure_publisher_02ba', 1, "shallow_pressure")
-        node2 = PressurePublisher(1, 'pressure_publisher_30ba', 0, "deep_pressure")
+        node = PressurePublisher(0, "pressure_publisher_02ba", 1, "shallow_pressure")
+        node2 = PressurePublisher(1, "pressure_publisher_30ba", 0, "deep_pressure")
         if node is None or node2 is None:
             rclpy.shutdown()
             return
@@ -64,5 +68,6 @@ def main():
             node2.destroy_node()
         rclpy.shutdown()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

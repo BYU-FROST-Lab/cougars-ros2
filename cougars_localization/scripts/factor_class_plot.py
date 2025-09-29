@@ -3,8 +3,9 @@
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation as R
 
+
 class Series:
-    def __init__(self, name, color='r', alpha=0.7, size=200):
+    def __init__(self, name, color="r", alpha=0.7, size=200):
         self.name = name
         self.color = color
         self.alpha = alpha
@@ -32,11 +33,12 @@ class Series:
         self.values.append(value)
         self.pose_keys.append(pose_key)
 
-
     def plot(self, ax):
         """Plot the series on the given axis."""
         if self.line is None:
-            self.line, = ax.plot([], [], '-', color=self.color, alpha=self.alpha, label=self.name)
+            (self.line,) = ax.plot(
+                [], [], "-", color=self.color, alpha=self.alpha, label=self.name
+            )
             self.scatter = ax.scatter([], [], color=self.color, alpha=0.8, s=self.size)
 
         # Plot the main data points
@@ -46,7 +48,6 @@ class Series:
         ax.set_xlim(1724953702000000000, 1724953854000000000)
         ax.set_ylim(-2395, -2367)
 
-
         # if len(self.timestamps) > 1:
         #     ax.set_xlim(min(self.timestamps), max(self.timestamps))
         #     ax.set_ylim(min(self.values) - 1, max(self.values) + 1)
@@ -55,9 +56,21 @@ class Series:
         #     ax.set_ylim(self.values[0] - 1, self.values[0] + 1)
 
         # Draw pose keys as text on the plot
-        for i, (x, y, key) in enumerate(zip(self.timestamps, self.values, self.pose_keys)):
+        for i, (x, y, key) in enumerate(
+            zip(self.timestamps, self.values, self.pose_keys)
+        ):
             if key is not None:
-                ax.text(x, y, str(key), color='black', ha='center', va='center', fontsize=10, weight='bold')
+                ax.text(
+                    x,
+                    y,
+                    str(key),
+                    color="black",
+                    ha="center",
+                    va="center",
+                    fontsize=10,
+                    weight="bold",
+                )
+
 
 class Plotter:
     def __init__(self, series_list):
@@ -67,8 +80,8 @@ class Plotter:
         # Create figure and axis
         self.figure, self.ax = plt.subplots()
 
-        self.ax.set_xlabel('Time')
-        self.ax.set_ylabel('Value')
+        self.ax.set_xlabel("Time")
+        self.ax.set_ylabel("Value")
         self.ax.grid(True)
 
         # Display the initial plot
@@ -78,7 +91,7 @@ class Plotter:
     def update_plot(self):
         """Update the plot with new measurements."""
         for series in self.series_list:
-            print('here')
+            print("here")
             series.plot(self.ax)
 
         self.plot_keyed_connections()
@@ -94,12 +107,16 @@ class Plotter:
                     for k, key1 in enumerate(series1.pose_keys):
                         if key1 is not None and key1 in series2.pose_keys:
                             idx2 = series2.pose_keys.index(key1)
-                            self.ax.plot([series1.timestamps[k], series2.timestamps[idx2]],
-                                         [series1.values[k], series2.values[idx2]], 'g--')
+                            self.ax.plot(
+                                [series1.timestamps[k], series2.timestamps[idx2]],
+                                [series1.values[k], series2.values[idx2]],
+                                "g--",
+                            )
 
     def show(self):
         """Display the plot."""
         plt.show(block=True)
+
 
 # # Create instances of the Series class for each plot
 # delta_series_1 = Series(name='Delta 1', color='red', size=600, alpha=0.5)

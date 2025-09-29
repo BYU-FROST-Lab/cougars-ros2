@@ -4,7 +4,7 @@
  *
  * This class is a simple implementation of a PID controller based on the BYU
  * ECEn 483 approach.
- * 
+ *
  * It uses the integral on/off anti-windup strategy.
  */
 
@@ -16,7 +16,7 @@ public:
   /**
    * Creates a new PID controller.
    */
-  PID(){};
+  PID() {};
 
   /**
    * This method initializes the PID controller with the given constants.
@@ -29,7 +29,7 @@ public:
    * @param interval The interval at which the PID controller is called.
    */
   void initialize(float KP, float KI, float KD, float min, float max,
-                  float interval, float scalar=1.0) {
+                  float interval, float scalar = 1.0) {
     this->kp = KP;
     this->ki = KI;
     this->kd = KD;
@@ -37,10 +37,10 @@ public:
     this->max_output = max;
     this->pid_interval = interval;
 
-    this->x_dot = 0.0;      // estimated derivative of x
-    this->x_d1 = 0.0;       // x delayed by one sample
-    this->error_d1 = 0.0;   // error delayed by one sample
-    integral = 0.0;          // integral
+    this->x_dot = 0.0;    // estimated derivative of x
+    this->x_d1 = 0.0;     // x delayed by one sample
+    this->error_d1 = 0.0; // error delayed by one sample
+    integral = 0.0;       // integral
 
     float sigma = 0.05; // cutoff freq for dirty derivative
     this->beta = (2.0 * sigma - interval) / (2.0 * sigma + interval);
@@ -63,11 +63,9 @@ public:
 
   float getXDot() const { return x_dot; }
 
-  void reset_int(){
-    integral = 0.0;
-  }
+  void reset_int() { integral = 0.0; }
 
-  void print_values(){
+  void print_values() {
     std::cout << " Kp: " << kp << " Ki: " << ki << " Kd: " << kd << std::endl;
   }
 
@@ -84,13 +82,15 @@ public:
 
     // integrate error in x with anti-windup
     if (std::abs(this->x_dot) < 0.08) {
-      integral = integral + (this->pid_interval / 2.0) * (error + this->error_d1);
+      integral =
+          integral + (this->pid_interval / 2.0) * (error + this->error_d1);
     }
 
     // std::cout << "i " << integral << std::endl;
 
     // differentiate x
-    this->x_dot = this->beta * this->x_dot + (1.0 - this->beta) * ((x - this->x_d1) / this->pid_interval);
+    this->x_dot = this->beta * this->x_dot +
+                  (1.0 - this->beta) * ((x - this->x_d1) / this->pid_interval);
 
     // std::cout << "x_dot " << this->x_dot << std::endl;
 
@@ -119,7 +119,7 @@ public:
   }
 
   float compute(float x_r, float x, float x_dot_in) {
-    
+
     this->x_dot = x_dot_in;
     float error = x_r - x;
 
@@ -163,23 +163,22 @@ public:
     i = ((this->ki * integral) / scalar);
     d = (this->kd * this->x_dot) / scalar;
 
-
     float pd = p - d;
-    float force_unsat =  pd + i;
+    float force_unsat = pd + i;
 
     // saturate the force and integral error in x
     float force_sat;
 
     if (force_unsat > this->max_output) {
       force_sat = this->max_output;
-      if (pd > this->max_output){
+      if (pd > this->max_output) {
         integral = 0.0;
       } else {
-        integral = ((this->max_output - pd) * scalar)/this->ki;
+        integral = ((this->max_output - pd) * scalar) / this->ki;
       }
     } else if (force_unsat < this->min_output) {
       force_sat = this->min_output;
-      if (pd < this->min_output){
+      if (pd < this->min_output) {
         integral = 0.0;
       } else {
         integral = ((this->min_output - pd) * scalar) / this->ki;
@@ -203,14 +202,14 @@ private:
   float i;
   float d;
   float pid;
-  
+
   float kp;
   float ki;
   float kd;
   float min_output;
   float max_output;
   float pid_interval;
-  
+
   float beta;
   float x_dot;
   float x_d1;

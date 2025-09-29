@@ -6,30 +6,30 @@ origin_lla:
   name: UL Provo Marina
 reference_frame_for_waypoints: ENU_at_origin_LLA
 waypoints:
-- id: 1
-  position_enu:
-    x: 73.053
-    y: 25.469
-    z: -0.0
-  depth: 0.5
-  original_map_click_lla:
-    latitude: 40.2391763
-    longitude: -111.7386797
-- id: 2
-  position_enu:
-    x: 54.79
-    y: -23.649
-    z: -0.0
-  depth: 0.5
-  original_map_click_lla:
-    latitude: 40.2387341
-    longitude: -111.7388943
-- id: 3
-  position_enu:
-    x: 49.312
-    y: -56.395
-    z: -0.0
-  depth: 1.0
-  original_map_click_lla:
-    latitude: 40.2384392
-    longitude: -111.7389586
+  - id: 1
+    position_enu:
+      x: 73.053
+      y: 25.469
+      z: -0.0
+    depth: 0.5
+    original_map_click_lla:
+      latitude: 40.2391763
+      longitude: -111.7386797
+  - id: 2
+    position_enu:
+      x: 54.79
+      y: -23.649
+      z: -0.0
+    depth: 0.5
+    original_map_click_lla:
+      latitude: 40.2387341
+      longitude: -111.7388943
+  - id: 3
+    position_enu:
+      x: 49.312
+      y: -56.395
+      z: -0.0
+    depth: 1.0
+    original_map_click_lla:
+      latitude: 40.2384392
+      longitude: -111.7389586
