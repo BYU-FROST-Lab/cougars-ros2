@@ -1,24 +1,24 @@
+#include <Eigen/Dense>
+#include <Eigen/Geometry>
 #include <chrono>
+#include <cmath> // For atan2, M_PI, fmin, fmax
 #include <functional>
 #include <memory>
 #include <string>
-#include <Eigen/Geometry>
-#include <Eigen/Dense>
-#include <cmath>  // For atan2, M_PI, fmin, fmax
 
-#include "pid.cpp"
 #include "actuator.cpp"
+#include "pid.cpp"
 // #include "pid_int2.cpp"
-#include "dvl_msgs/msg/dvl.hpp"
+#include "cougars_interfaces/msg/controls_debug.hpp"
 #include "cougars_interfaces/msg/desired_depth.hpp"
 #include "cougars_interfaces/msg/desired_heading.hpp"
 #include "cougars_interfaces/msg/desired_speed.hpp"
 #include "cougars_interfaces/msg/u_command.hpp"
-#include "sensor_msgs/msg/imu.hpp"
+#include "dvl_msgs/msg/dvl.hpp"
 #include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 #include "geometry_msgs/msg/twist_with_covariance_stamped.hpp"
-#include "cougars_interfaces/msg/controls_debug.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "sensor_msgs/msg/imu.hpp"
 #include "std_srvs/srv/set_bool.hpp"
 #include <cougars_interfaces/msg/system_control.hpp>
 
@@ -37,7 +37,7 @@ auto qos = rclcpp::QoS(
  * controllers and publishes the control commands to a control command topic.
  *
  * Service:
- * - init_controls (std_srvs/srv/SetBool) 
+ * - init_controls (std_srvs/srv/SetBool)
  *
  * Subscribes:
  * - desired_depth (cougars_interfaces/msg/DesiredDepth)
@@ -45,13 +45,12 @@ auto qos = rclcpp::QoS(
  * - desired_speed (cougars_interfaces/msg/DesiredSpeed)
  * - depth_data (geometry_msgs/msg/PoseWithCovarianceStamped)
  * - modem_status (seatrac_interfaces/msg/ModemStatus)
- * 
+ *
  * Publishes:
  * - controls/command (cougars_interfaces/msg/UCommand)
  */
 class CougControls : public rclcpp::Node {
 public:
-
   /**
    * Creates a new controls node.
    */
@@ -207,7 +206,8 @@ public:
     /**
      * @brief debug controller publisher.
      *
-     * This publisher is used for debugging pitch and depth by publishing reference values.
+     * This publisher is used for debugging pitch and depth by publishing
+     * reference values.
      */
     debug_controls_pub_ =
         this->create_publisher<cougars_interfaces::msg::ControlsDebug>(
@@ -220,14 +220,15 @@ public:
      * type.
      */
     init_service_ = this->create_service<std_srvs::srv::SetBool>(
-            "init_controls",
-            std::bind(&CougControls::handle_service, this, std::placeholders::_1, std::placeholders::_2));
+        "init_controls",
+        std::bind(&CougControls::handle_service, this, std::placeholders::_1,
+                  std::placeholders::_2));
 
     /**
      * @brief Desired depth subscriber.
      *
      * This subscriber subscribes to the "desired_depth" topic. It uses the
-     * DesiredDepth message type. 
+     * DesiredDepth message type.
      */
     desired_depth_subscription_ =
         this->create_subscription<cougars_interfaces::msg::DesiredDepth>(
@@ -238,7 +239,8 @@ public:
      * @brief Desired heading subscriber.
      *
      * This subscriber subscribes to the "desired_heading" topic. It uses the
-     * DesiredHeading message type. Expects the value to be in degrees from -180 to 180. ENU coordinate frame (0 being true east) 
+     * DesiredHeading message type. Expects the value to be in degrees from -180
+     * to 180. ENU coordinate frame (0 being true east)
      */
     desired_heading_subscription_ =
         this->create_subscription<cougars_interfaces::msg::DesiredHeading>(
@@ -260,7 +262,8 @@ public:
      * @brief Depth subscriber.
      *
      * This subscriber subscribes to the "depth_data" topic. It uses the
-     * PoseWithCovarianceStamped message type. Expects data in ENU with the z value being more negative with increasing depth
+     * PoseWithCovarianceStamped message type. Expects data in ENU with the z
+     * value being more negative with increasing depth
      */
     actual_depth_subscription_ = this->create_subscription<
         geometry_msgs::msg::PoseWithCovarianceStamped>(
@@ -271,11 +274,11 @@ public:
      * @brief Altitude subscriber.
      *
      * This subscriber subscribes to the "dvl/data" topic. It uses the
-     *  message type. Expects data in ENU with the z value being more negative with increasing depth
+     *  message type. Expects data in ENU with the z value being more negative
+     * with increasing depth
      */
     subscriber_dvl_data = this->create_subscription<dvl_msgs::msg::DVL>(
-        "dvl/data", qos,
-        std::bind(&CougControls::dvl_data_callback, this, _1));
+        "dvl/data", qos, std::bind(&CougControls::dvl_data_callback, this, _1));
 
     /**
      * @brief Yaw and Pitch subscriber.
@@ -287,20 +290,22 @@ public:
         this->create_subscription<sensor_msgs::msg::Imu>(
             "modem_imu", 10,
             std::bind(&CougControls::actual_orientation_callback, this, _1));
-    
+
     /**
      * @brief Converted DVL velocity subscriber.
      *
-     * This subscriber subscribes to the "dvl/velocity" topic. It uses the TwistWithCovarianceStamped
-     * message type.
+     * This subscriber subscribes to the "dvl/velocity" topic. It uses the
+     * TwistWithCovarianceStamped message type.
      */
-    actual_velocity_subscription_ = this->create_subscription<geometry_msgs::msg::TwistWithCovarianceStamped>(
+    actual_velocity_subscription_ = this->create_subscription<
+        geometry_msgs::msg::TwistWithCovarianceStamped>(
         "dvl/velocity", qos,
         std::bind(&CougControls::dvl_velocity_callback, this, _1));
 
-    system_control_sub_ = this->create_subscription<cougars_interfaces::msg::SystemControl>(
-            "system/status", 1, std::bind(&CougControls::system_callback, this, _1));
-
+    system_control_sub_ =
+        this->create_subscription<cougars_interfaces::msg::SystemControl>(
+            "system/status", 1,
+            std::bind(&CougControls::system_callback, this, _1));
 
     this->velocity[0] = 0.6f;
     this->velocity[1] = 0.0f;
@@ -322,32 +327,35 @@ private:
    *
    * This method updates all the parameters for the node
    */
-  void update_parameters(){
-        // calibrate PID controllers
+  void update_parameters() {
+    // calibrate PID controllers
     // TODO parameterize this if it works
-    float scalar = 0.5 * 997 * 0.00665 * 0.5 * -0.43 * std::cos(30 * (M_PI / 180.0));
+    float scalar =
+        0.5 * 997 * 0.00665 * 0.5 * -0.43 * std::cos(30 * (M_PI / 180.0));
 
     myDepthPID.initialize(this->get_parameter("depth_kp").as_double(),
-                         this->get_parameter("depth_ki").as_double(),
-                         this->get_parameter("depth_kd").as_double(),
-                         this->get_parameter("depth_min_output").as_double(),         
-                         this->get_parameter("depth_max_output").as_double(),
-                         (float)this->get_parameter("timer_period").as_int()); 
+                          this->get_parameter("depth_ki").as_double(),
+                          this->get_parameter("depth_kd").as_double(),
+                          this->get_parameter("depth_min_output").as_double(),
+                          this->get_parameter("depth_max_output").as_double(),
+                          (float)this->get_parameter("timer_period").as_int());
 
     myPitchPID.initialize(this->get_parameter("pitch_kp").as_double(),
-                         this->get_parameter("pitch_ki").as_double(),
-                         this->get_parameter("pitch_kd").as_double(),
-                         this->get_parameter("pitch_min_output").as_double(),       //THIS is the fin min and max
-                         this->get_parameter("pitch_max_output").as_double(),
-                         (float)this->get_parameter("timer_period").as_int(),
-                         scalar);
+                          this->get_parameter("pitch_ki").as_double(),
+                          this->get_parameter("pitch_kd").as_double(),
+                          this->get_parameter("pitch_min_output")
+                              .as_double(), // THIS is the fin min and max
+                          this->get_parameter("pitch_max_output").as_double(),
+                          (float)this->get_parameter("timer_period").as_int(),
+                          scalar);
 
-    myHeadingPID.initialize(this->get_parameter("heading_kp").as_double(),
-                           this->get_parameter("heading_ki").as_double(),
-                           this->get_parameter("heading_kd").as_double(),
-                           this->get_parameter("heading_min_output").as_double(),
-                           this->get_parameter("heading_max_output").as_double(),
-                           (float)this->get_parameter("timer_period").as_int());
+    myHeadingPID.initialize(
+        this->get_parameter("heading_kp").as_double(),
+        this->get_parameter("heading_ki").as_double(),
+        this->get_parameter("heading_kd").as_double(),
+        this->get_parameter("heading_min_output").as_double(),
+        this->get_parameter("heading_max_output").as_double(),
+        (float)this->get_parameter("timer_period").as_int());
 
     std::cout << "Depth Controller Values -";
     myDepthPID.print_values();
@@ -355,55 +363,54 @@ private:
     myPitchPID.print_values();
     std::cout << "Heading Controller Values -";
     myHeadingPID.print_values();
-
   }
-  
-  
+
   /**
    * @brief Callback function for the initialization service.
    *
    * This method initializes the controls node by setting the init flag to
    * true.
    */
-  void handle_service(const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
-                    std::shared_ptr<std_srvs::srv::SetBool::Response> response){
+  void
+  handle_service(const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
+                 std::shared_ptr<std_srvs::srv::SetBool::Response> response) {
     // Set the initialization flag based on the request
 
     set_init_flag(request->data);
 
     // Respond with success and an appropriate message
     if (request->data) {
-        response->success = true;
-        response->message = "Controller Node initialized.";
+      response->success = true;
+      response->message = "Controller Node initialized.";
     } else {
-        response->success = false;
-        response->message = "Controller Node de-initialized.";
+      response->success = false;
+      response->message = "Controller Node de-initialized.";
     }
   }
 
-  void set_init_flag(bool value){
+  void set_init_flag(bool value) {
     this->init_flag = value;
     update_parameters();
-    RCLCPP_INFO(this->get_logger(), value ? "Controller Node initialized." : "Controller Node de-initialized.");
-    if(value){
+    RCLCPP_INFO(this->get_logger(), value ? "Controller Node initialized."
+                                          : "Controller Node de-initialized.");
+    if (value) {
       // If the init flag is set, start the control loop
       RCLCPP_INFO(this->get_logger(), "Controller Node initialized.");
     } else {
       // Publish a empty command to stop the vehicle
-     RCLCPP_INFO(this->get_logger(), "published empty command to stop vehicle");
+      RCLCPP_INFO(this->get_logger(),
+                  "published empty command to stop vehicle");
       auto message = cougars_interfaces::msg::UCommand();
       u_command_publisher_->publish(message);
     }
   }
-  
-  void system_callback(const cougars_interfaces::msg::SystemControl::SharedPtr msg)
-  {
-     // Set the boolean to the requested value
+
+  void
+  system_callback(const cougars_interfaces::msg::SystemControl::SharedPtr msg) {
+    // Set the boolean to the requested value
     set_init_flag(msg->start.data);
     update_parameters();
-
   }
-
 
   /**
    * @brief Callback function for the desired_depth subscription.
@@ -414,26 +421,27 @@ private:
    * @param depth_msg The DesiredDepth message recieved from the desired_depth
    * topic.
    */
-  void
-  desired_depth_callback(const cougars_interfaces::msg::DesiredDepth &depth_msg) {
+  void desired_depth_callback(
+      const cougars_interfaces::msg::DesiredDepth &depth_msg) {
     constexpr double EPSILON = 1e-6; // Small tolerance value
     // KEEP THIS OR BAD THINGS WILL HAPPEN - BRADEN MEYERS
     // floating point precicision issue bug fix
 
     if (std::abs(depth_msg.desired_depth - this->desired_depth) < EPSILON) {
-        // RCLCPP_INFO(this->get_logger(), "not a new desired depth");
-        return;
+      // RCLCPP_INFO(this->get_logger(), "not a new desired depth");
+      return;
     }
-    RCLCPP_INFO(this->get_logger(), "New Depth Desired: %f, Old desired depth %f", depth_msg.desired_depth, this->desired_depth);
+    RCLCPP_INFO(this->get_logger(),
+                "New Depth Desired: %f, Old desired depth %f",
+                depth_msg.desired_depth, this->desired_depth);
     this->desired_depth = depth_msg.desired_depth;
     this->dfb = depth_msg.dfb;
 
     // TODO reset integrator term??
     // TODO in the message type specify the dfb or not
-    if (this->dfb){
+    if (this->dfb) {
       this->depth_ref = this->altitude;
-    }
-    else{
+    } else {
       // When a new desired depth sent update the depth_ref to the actual depth
       this->depth_ref = this->actual_depth;
     }
@@ -460,10 +468,10 @@ private:
    * desired speed message.
    *
    * @param speed_msg The DesiredSpeed message recieved from the desired_speed
-   * topic. The 
+   * topic. The
    */
-  void
-  desired_speed_callback(const cougars_interfaces::msg::DesiredSpeed &speed_msg) {
+  void desired_speed_callback(
+      const cougars_interfaces::msg::DesiredSpeed &speed_msg) {
     this->desired_speed = speed_msg.desired_speed;
   }
 
@@ -471,7 +479,7 @@ private:
    * @brief Callback function for the depth subscription.
    *
    * This method sets the actual depth value to the value received from the
-   * depth message. 
+   * depth message.
    *
    * @param depth_msg The PoseWithCovarianceStamped message recieved from the
    * depth_data topic.
@@ -479,54 +487,52 @@ private:
   void actual_depth_callback(
       const geometry_msgs::msg::PoseWithCovarianceStamped &depth_msg) {
     this->actual_depth = -depth_msg.pose.pose.position.z;
-    //Negate the z value in ENU to get postive depth value
+    // Negate the z value in ENU to get postive depth value
   }
 
   void dvl_data_callback(const dvl_msgs::msg::DVL::SharedPtr msg) {
     this->altitude = msg->altitude;
-
   }
 
   /**
    * @brief Callback function for the velocity subscription.
    *
    * This method sets the velocity value to the value received from the
-   * velocity message. 
+   * velocity message.
    *
    * @param velocity The TwistWithCovarianceStamped message recieved from the
    * dvl/velocity topic.
    */
   void dvl_velocity_callback(
       const geometry_msgs::msg::TwistWithCovarianceStamped &velocity_msg) {
-    
-    //This is taking from the converted dvl velocity only when dvl velocity is valid.
-    // Velocity in x is expected to be 0.67 m/s at 20/100 thruster with velocity in y and z expected to be < 0.01
+
+    // This is taking from the converted dvl velocity only when dvl velocity is
+    // valid.
+    //  Velocity in x is expected to be 0.67 m/s at 20/100 thruster with
+    //  velocity in y and z expected to be < 0.01
     this->velocity[0] = velocity_msg.twist.twist.linear.x;
     this->velocity[1] = velocity_msg.twist.twist.linear.y;
     this->velocity[2] = velocity_msg.twist.twist.linear.z;
-
 
     // OVERRIDE VELOCITY GIVEN WITH A CONSTANT VELOCITY OF 1 m/s
     this->velocity[0] = 0.6f;
     this->velocity[1] = 0.0f;
     this->velocity[2] = 0.0f;
-
   }
 
-
-  void normalizeAngles(double& yaw, double& pitch, double& roll) {
+  void normalizeAngles(double &yaw, double &pitch, double &roll) {
     // Normalize yaw to [-180, 180]
     yaw = fmod(yaw + 180.0, 360.0) - 180.0;
 
     // Limit pitch to [-90, 90]
     if (pitch > 90.0) {
-        pitch = 180.0 - pitch;
-        yaw += 180.0;
-        roll += 180.0;
+      pitch = 180.0 - pitch;
+      yaw += 180.0;
+      roll += 180.0;
     } else if (pitch < -90.0) {
-        pitch = -180.0 - pitch;
-        yaw += 180.0;
-        roll += 180.0;
+      pitch = -180.0 - pitch;
+      yaw += 180.0;
+      roll += 180.0;
     }
 
     // Normalize roll to [-180, 180]
@@ -540,27 +546,26 @@ private:
    * @brief Callback function for the orientation subscription.
    *
    * This method sets the actual heading value to the value received from the
-   * yaw message and the pitch value.  
+   * yaw message and the pitch value.
    *
    * @param orientation_msg The Imu message recieved from the modem_imu topic.
    */
-  void actual_orientation_callback(const sensor_msgs::msg::Imu &orientation_msg) {
+  void
+  actual_orientation_callback(const sensor_msgs::msg::Imu &orientation_msg) {
     // Normalize and extract quaternion from the IMU message
     Eigen::Quaterniond q(
-        orientation_msg.orientation.w,
-        orientation_msg.orientation.x,
-        orientation_msg.orientation.y,
-        orientation_msg.orientation.z
-    );
+        orientation_msg.orientation.w, orientation_msg.orientation.x,
+        orientation_msg.orientation.y, orientation_msg.orientation.z);
     q.normalize();
-    
+
     this->current_quat = q;
 
     // Convert quaternion to a 3x3 rotation matrix
     Eigen::Matrix3d rotation_matrix = q.toRotationMatrix();
 
     // Extract Euler angles using ZYX order: yaw (Z), pitch (Y), roll (X)
-    Eigen::Vector3d euler_angles = rotation_matrix.eulerAngles(2, 1, 0);  // ZYX order
+    Eigen::Vector3d euler_angles =
+        rotation_matrix.eulerAngles(2, 1, 0); // ZYX order
 
     // Convert radians to degrees and center angles around 0
     double yaw = euler_angles[0] * (180.0 / M_PI);
@@ -568,12 +573,14 @@ private:
     double roll = euler_angles[2] * (180.0 / M_PI);
 
     // std::cout << "Before normalization:" << std::endl;
-    // std::cout << "Yaw: " << yaw << ", Pitch: " << pitch << ", Roll: " << roll << std::endl;
+    // std::cout << "Yaw: " << yaw << ", Pitch: " << pitch << ", Roll: " << roll
+    // << std::endl;
 
     normalizeAngles(yaw, pitch, roll);
 
     // std::cout << "After normalization:" << std::endl;
-    // std::cout << "Yaw: " << yaw << ", Pitch: " << pitch << ", Roll: " << roll << std::endl;
+    // std::cout << "Yaw: " << yaw << ", Pitch: " << pitch << ", Roll: " << roll
+    // << std::endl;
 
     // Store heading, pitch, and roll
     this->actual_heading = yaw;
@@ -591,58 +598,74 @@ private:
 
   float calculateYawError(float desired_heading, float actual_heading) {
     float yaw_err = desired_heading - actual_heading;
-    
+
     // Normalize the error to the range [-180, 180]
     if (yaw_err > 180.0f) {
-        yaw_err -= 360.0f;
+      yaw_err -= 360.0f;
     } else if (yaw_err < -180.0f) {
-        yaw_err += 360.0f;
+      yaw_err += 360.0f;
     }
-    
+
     return yaw_err;
   }
-  
-  int depth_autopilot(float depth, float depth_d, int altitude_hold=1){
+
+  int depth_autopilot(float depth, float depth_d, int altitude_hold = 1) {
     float surge = this->velocity[0];
     float surge_threshold = this->get_parameter("surge_threshold").as_double();
     float timer_period = this->get_parameter("timer_period").as_int() / 1000.0;
-    float theta_max = this->get_parameter("depth_max_output").as_double();  //FIGURE OUT THIS PARAM for the vehicle at full fin 
-    float wn_d_z = this->get_parameter("wn_d_z").as_double(); //TODO this is an important parameter - See how z tracks z ref
+    float theta_max =
+        this->get_parameter("depth_max_output")
+            .as_double(); // FIGURE OUT THIS PARAM for the vehicle at full fin
+    float wn_d_z = this->get_parameter("wn_d_z")
+                       .as_double(); // TODO this is an important parameter -
+                                     // See how z tracks z ref
     float wn_d_theta = this->get_parameter("wn_d_theta").as_double();
-    float outer_loop_threshold = this->get_parameter("outer_loop_threshold").as_double();
-    float saturation_offset = this->get_parameter("saturation_offset").as_double();
+    float outer_loop_threshold =
+        this->get_parameter("outer_loop_threshold").as_double();
+    float saturation_offset =
+        this->get_parameter("saturation_offset").as_double();
 
-    if(surge < surge_threshold){
-        this->theta_ref = this->actual_pitch;   
-        return 0;
+    if (surge < surge_threshold) {
+      this->theta_ref = this->actual_pitch;
+      return 0;
     }
     // Low Pass filter for depth reference
-    this->depth_ref = std::exp(-timer_period * wn_d_z) * this->depth_ref
-    + (1 - std::exp(-timer_period * wn_d_z)) * depth_d;
+    this->depth_ref = std::exp(-timer_period * wn_d_z) * this->depth_ref +
+                      (1 - std::exp(-timer_period * wn_d_z)) * depth_d;
 
-    double saturated = saturation_offset * std::copysign(1.0, depth_d - depth);  //CHECK THE SIGN ON THIS
-    
+    double saturated =
+        saturation_offset *
+        std::copysign(1.0, depth_d - depth); // CHECK THE SIGN ON THIS
+
     if (std::abs(depth_d - depth) > outer_loop_threshold) {
-        // saturate theta_d
-        float theta_d = theta_max * std::copysign(1.0, depth_d - depth) * altitude_hold;
-        this->theta_ref = std::exp(-timer_period * wn_d_theta) * this->theta_ref
-                        + (1.0 - std::exp(-timer_period * wn_d_theta)) * theta_d;
+      // saturate theta_d
+      float theta_d =
+          theta_max * std::copysign(1.0, depth_d - depth) * altitude_hold;
+      this->theta_ref = std::exp(-timer_period * wn_d_theta) * this->theta_ref +
+                        (1.0 - std::exp(-timer_period * wn_d_theta)) * theta_d;
 
-        this->depth_ref = depth + saturated; // Override low pass filter input
-        std::cout <<  "Saturated Depth PID mode" << std::endl;
-        myDepthPID.reset_int();
+      this->depth_ref = depth + saturated; // Override low pass filter input
+      std::cout << "Saturated Depth PID mode" << std::endl;
+      myDepthPID.reset_int();
     } else {
-        this->theta_ref = myDepthPID.compute(this->depth_ref, depth, this->velocity[2]) * altitude_hold;
+      this->theta_ref =
+          myDepthPID.compute(this->depth_ref, depth, this->velocity[2]) *
+          altitude_hold;
     }
 
-    int depth_pos = (int)myPitchPID.compute(this->theta_ref, this->actual_pitch, this->pitch_rate, this->velocity[0]);  
-    
+    int depth_pos =
+        (int)myPitchPID.compute(this->theta_ref, this->actual_pitch,
+                                this->pitch_rate, this->velocity[0]);
+
     // Add torque equilibruim?
-    // int depth_pos = (int)calculate_deflection(torque_s, this->velocity, -0.43, deltaMax);
-    //TODO calculate beforehand what torque creates a max deflection.
-    
-    // std::cout <<  "Depth: " << this->actual_depth << " Depth Ref: " << this->depth_ref << " Desired Depth: " << depth_d << std::endl;
-    // std::cout <<  "Pitch: " << this->actual_pitch << " Desired Pitch: " << this->theta_ref  << " Pitch Rate: " << this->pitch_rate << std::endl;
+    // int depth_pos = (int)calculate_deflection(torque_s, this->velocity,
+    // -0.43, deltaMax);
+    // TODO calculate beforehand what torque creates a max deflection.
+
+    // std::cout <<  "Depth: " << this->actual_depth << " Depth Ref: " <<
+    // this->depth_ref << " Desired Depth: " << depth_d << std::endl; std::cout
+    // <<  "Pitch: " << this->actual_pitch << " Desired Pitch: " <<
+    // this->theta_ref  << " Pitch Rate: " << this->pitch_rate << std::endl;
     // std::cout << " Fin: " << depth_pos << std::endl;
 
     return depth_pos;
@@ -655,83 +678,82 @@ private:
    * publishes the control commands to the controls/command topic.
    */
   void timer_callback() {
-      auto message = cougars_interfaces::msg::UCommand();
-      message.header.stamp = this->now();
+    auto message = cougars_interfaces::msg::UCommand();
+    message.header.stamp = this->now();
 
-      int depth_pos;
-      if (this->init_flag) {
-        float depth_trackpoint;
-        if (dfb){
-          depth_trackpoint = this->altitude;
-          depth_pos = depth_autopilot(depth_trackpoint, this->desired_depth, -1);
-        }
-        else{
-          depth_trackpoint = this->actual_depth;
-          depth_pos = depth_autopilot(depth_trackpoint, this->desired_depth);
-        }
-          
-        // Handling roll over when taking the error difference
-        // given desired heading and actual heading from -180 to 180
-        // if they are both negative or they are both positive than just take the difference
-        float yaw_err = calculateYawError(this->desired_heading, this->actual_heading);
-        // // Log the information
-          
-        int heading_pos = (int)myHeadingPID.compute(0.0, yaw_err);
-
-        // Step 5: Set fin positions and publish the command
-        message.fin[0] = heading_pos;    // top fin
-        message.fin[1] = -depth_pos;      // starboard side fin
-        message.fin[2] = depth_pos;      // port side fin
-        message.thruster = this->desired_speed;
-    
-        u_command_publisher_->publish(message);
-        
-
-        // std::cout <<  "Yaw: " << this->actual_heading << "Desired Yaw: " << this->desired_heading << "Yaw Error: " << yaw_err << std::endl;
-        
-        // Debugging Message
-        auto message = cougars_interfaces::msg::ControlsDebug();
-        message.header.stamp = this->now();
-        message.pitch.actual = this->actual_pitch;
-        message.pitch.rate = this->pitch_rate;
-        message.pitch.desired = this->theta_ref;
-        message.pitch.reference = this->theta_ref;
-        message.pitch.p = myPitchPID.getP();
-        message.pitch.i = myPitchPID.getI();
-        message.pitch.d = myPitchPID.getD();
-        message.pitch.pid = myPitchPID.getPID();
-
-        message.depth.actual = depth_trackpoint;
-        message.depth.rate = this->velocity[2];
-        message.depth.desired = this->desired_depth;
-        message.depth.reference = this->depth_ref;
-        message.depth.p = myDepthPID.getP();
-        message.depth.i = myDepthPID.getI();
-        message.depth.d = myDepthPID.getD();
-        message.depth.pid = myDepthPID.getPID();
-
-        message.heading.actual = this->actual_heading;
-        message.heading.rate = this->yaw_rate;
-        message.heading.desired = this->desired_heading;
-        // message.heading.reference = this->heading_ref;
-        message.heading.p = myHeadingPID.getP();
-        message.heading.i = myHeadingPID.getI();
-        message.heading.d = myHeadingPID.getD();
-        message.heading.pid = myHeadingPID.getPID();
-    
-        debug_controls_pub_->publish(message);
-
+    int depth_pos;
+    if (this->init_flag) {
+      float depth_trackpoint;
+      if (dfb) {
+        depth_trackpoint = this->altitude;
+        depth_pos = depth_autopilot(depth_trackpoint, this->desired_depth, -1);
+      } else {
+        depth_trackpoint = this->actual_depth;
+        depth_pos = depth_autopilot(depth_trackpoint, this->desired_depth);
       }
-      // else{
-      //   message.fin[0] = 0;    // top fin
-      //   message.fin[1] = 0;      // right fin
-      //   message.fin[2] = 0;      // left fin
-      //   message.thruster = 0;
 
-      //   u_command_publisher_->publish(message);
-      // }
+      // Handling roll over when taking the error difference
+      // given desired heading and actual heading from -180 to 180
+      // if they are both negative or they are both positive than just take the
+      // difference
+      float yaw_err =
+          calculateYawError(this->desired_heading, this->actual_heading);
+      // // Log the information
+
+      int heading_pos = (int)myHeadingPID.compute(0.0, yaw_err);
+
+      // Step 5: Set fin positions and publish the command
+      message.fin[0] = heading_pos; // top fin
+      message.fin[1] = -depth_pos;  // starboard side fin
+      message.fin[2] = depth_pos;   // port side fin
+      message.thruster = this->desired_speed;
+
+      u_command_publisher_->publish(message);
+
+      // std::cout <<  "Yaw: " << this->actual_heading << "Desired Yaw: " <<
+      // this->desired_heading << "Yaw Error: " << yaw_err << std::endl;
+
+      // Debugging Message
+      auto message = cougars_interfaces::msg::ControlsDebug();
+      message.header.stamp = this->now();
+      message.pitch.actual = this->actual_pitch;
+      message.pitch.rate = this->pitch_rate;
+      message.pitch.desired = this->theta_ref;
+      message.pitch.reference = this->theta_ref;
+      message.pitch.p = myPitchPID.getP();
+      message.pitch.i = myPitchPID.getI();
+      message.pitch.d = myPitchPID.getD();
+      message.pitch.pid = myPitchPID.getPID();
+
+      message.depth.actual = depth_trackpoint;
+      message.depth.rate = this->velocity[2];
+      message.depth.desired = this->desired_depth;
+      message.depth.reference = this->depth_ref;
+      message.depth.p = myDepthPID.getP();
+      message.depth.i = myDepthPID.getI();
+      message.depth.d = myDepthPID.getD();
+      message.depth.pid = myDepthPID.getPID();
+
+      message.heading.actual = this->actual_heading;
+      message.heading.rate = this->yaw_rate;
+      message.heading.desired = this->desired_heading;
+      // message.heading.reference = this->heading_ref;
+      message.heading.p = myHeadingPID.getP();
+      message.heading.i = myHeadingPID.getI();
+      message.heading.d = myHeadingPID.getD();
+      message.heading.pid = myHeadingPID.getPID();
+
+      debug_controls_pub_->publish(message);
+    }
+    // else{
+    //   message.fin[0] = 0;    // top fin
+    //   message.fin[1] = 0;      // right fin
+    //   message.fin[2] = 0;      // left fin
+    //   message.thruster = 0;
+
+    //   u_command_publisher_->publish(message);
+    // }
   }
-
 
   // micro-ROS objects
   rclcpp::TimerBase::SharedPtr controls_timer_;
@@ -745,14 +767,16 @@ private:
       desired_speed_subscription_;
   rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr
       actual_depth_subscription_;
-  rclcpp::Subscription<geometry_msgs::msg::TwistWithCovarianceStamped>::SharedPtr
-      actual_velocity_subscription_;
+  rclcpp::Subscription<geometry_msgs::msg::TwistWithCovarianceStamped>::
+      SharedPtr actual_velocity_subscription_;
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr
       actual_orientation_subscription_;
   rclcpp::Subscription<dvl_msgs::msg::DVL>::SharedPtr subscriber_dvl_data;
-  rclcpp::Subscription<cougars_interfaces::msg::SystemControl>::SharedPtr system_control_sub_;
+  rclcpp::Subscription<cougars_interfaces::msg::SystemControl>::SharedPtr
+      system_control_sub_;
 
-  rclcpp::Publisher<cougars_interfaces::msg::ControlsDebug>::SharedPtr debug_controls_pub_;
+  rclcpp::Publisher<cougars_interfaces::msg::ControlsDebug>::SharedPtr
+      debug_controls_pub_;
 
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr init_service_;
 
