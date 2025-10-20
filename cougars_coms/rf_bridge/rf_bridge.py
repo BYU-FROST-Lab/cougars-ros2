@@ -108,7 +108,7 @@ class RFBridge(Node):
             self.pressure_callback,
             10)
         
-        self.ucommand_pub = self.create_publisher(UCommand, 'ucommand', 10)
+        self.ucommand_pub = self.create_publisher(UCommand, 'controls/command', 10)
 
 
         # Register XBee data receive callback
@@ -237,7 +237,8 @@ class RFBridge(Node):
                 message_type = data.get("message")
             else:
                 message_type = data
-
+            if payload != "PING":
+                self.get_logger().info(f"Received message: {message_type} {payload}")
             self.get_logger().debug(f"Published message: {payload}")
             if message_type == "STATUS":
                 response = self.get_all_status_data()
@@ -247,18 +248,18 @@ class RFBridge(Node):
             elif message_type == "PING":
                 response = {"message": "PING", "src_id": self.vehicle_id}
                 self.send_message(json.dumps(response), return_address)
-                self.get_logger().info(f"Received PING, responding with PING")
-            elif payload == "E_KILL":
+                self.get_logger().debug(f"Received PING, responding with PING")
+            elif message_type == "E_KILL":
                 self.get_logger().info(f"Received E_KILL message")
                 self.kill_thruster()
-            elif payload == "INIT":
+            elif message_type == "INIT":
                 init_msg = String()
                 init_msg.data = "INIT_COMMAND"
                 self.init_publisher.publish(init_msg)
                 self.get_logger().info(f"Received INIT, published to init topic")
                 self.device.send_data_broadcast("INIT_ACK")
-            elif payload == "KEY_CONTROL":
-                self.get_logger().info(f"Received KEY_CONTROL command")
+            elif message_type == "KEY_CONTROL":
+                self.get_logger().info(f"Received KEY_CONTROL command {data}")
                 self.handle_key_control(data)
             elif message_type == "FILE_START":
                 self.handle_file_start(data, return_address)
@@ -271,9 +272,21 @@ class RFBridge(Node):
             # self.get_logger().error(traceback.format_exc())
 
     def handle_key_control(self, msg):
+        self.get_logger().info(f"recieved key control through radio {msg}")
         ucommand_msg = UCommand()
-        ucommand_msg.fin = msg.get("fin", 0)
-        ucommand_msg.thr = msg.get("thr", 0)
+        
+        # Extract command data from nested structure
+        command_data = msg.get("command", {})
+        
+        # fin field expects an array of 4 floats
+        fin_value = command_data.get("fin", [0.0, 0.0, 0.0, 0.0])
+        fin_value[0] += 5
+        self.get_logger().info(f"fin value: {fin_value}")
+        ucommand_msg.fin = [float(f) for f in fin_value]
+        
+        # Get throttle value from command data
+        ucommand_msg.thruster = command_data.get("throttle", 0)
+        self.get_logger().info(f"thruster value: {ucommand_msg.thruster}")
         self.ucommand_pub.publish(ucommand_msg)
 
     
