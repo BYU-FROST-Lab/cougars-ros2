@@ -4,8 +4,8 @@ import launch
 import launch_ros.actions
 from launch.actions import DeclareLaunchArgument
 import launch_ros.descriptions
-from launch.substitutions import LaunchConfiguration
-from launch.conditions import IfCondition
+from launch.substitutions import LaunchConfiguration, PythonExpression
+from launch.conditions import IfCondition, UnlessCondition
 
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python.packages import get_package_share_directory
@@ -52,18 +52,45 @@ def generate_launch_description():
         verbose_launch_arg,
     ])
 
+    mode_launch_arg = DeclareLaunchArgument(
+        'mode',
+        default_value='manual',  # Default to manual mode
+        description='Mission mode: "manual" or "waypoint"'
+    )
+    launch_actions.append(mode_launch_arg)
+    
+    # Debug print to verify mode
+    for arg in sys.argv:
+        if 'mode:=' in arg:
+            print(f"[DEBUG] Mode argument found: {arg}")
+
+    # Use UnlessCondition for manual - only launch if NOT waypoint mode
     manual = launch.actions.IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(os.path.join(cougars_control_package_dir, "manual_launch.py"))
-        ,
-        launch_arguments=[
-            ('namespace', LaunchConfiguration('namespace')),
-            ('sim', LaunchConfiguration('sim')),
-            ('param_file', LaunchConfiguration('param_file')),
-            ('fleet_param', LaunchConfiguration('fleet_param')),
-            ('verbose', LaunchConfiguration('verbose')),
-        ],
+        PythonLaunchDescriptionSource(os.path.join(cougars_control_package_dir, "manual_launch.py")),
+        launch_arguments={
+            'namespace': LaunchConfiguration('namespace'),
+            'sim': LaunchConfiguration('sim'),
+            'param_file': LaunchConfiguration('param_file'),
+            'fleet_param': LaunchConfiguration('fleet_param'),
+            'verbose': LaunchConfiguration('verbose'),
+        }.items(),
+        condition=UnlessCondition(PythonExpression(["'", LaunchConfiguration('mode'), "' == 'waypoint'"]))
     )
     launch_actions.append(manual)
+
+    # Only launch waypoint when explicitly set to waypoint mode
+    waypoint = launch.actions.IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(cougars_control_package_dir, "waypoint_launch.py")),
+        launch_arguments={
+            'namespace': LaunchConfiguration('namespace'),
+            'sim': LaunchConfiguration('sim'),
+            'param_file': LaunchConfiguration('param_file'),
+            'fleet_param': LaunchConfiguration('fleet_param'),
+            'verbose': LaunchConfiguration('verbose'),
+        }.items(),
+        condition=IfCondition(PythonExpression(["'", LaunchConfiguration('mode'), "' == 'waypoint'"]))
+    )
+    launch_actions.append(waypoint)
 
     # TODO add more nodes here that can be activated and disactivated
     

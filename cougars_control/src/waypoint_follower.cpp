@@ -10,6 +10,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "nav_msgs/msg/odometry.hpp"
+#include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 #include "cougars_interfaces/msg/desired_depth.hpp"
 #include "cougars_interfaces/msg/desired_heading.hpp"
@@ -63,11 +64,16 @@ public:
         system_control_sub_ = this->create_subscription<cougars_interfaces::msg::SystemControl>(
             "system/status", 1, std::bind(&WaypointFollowerNode::system_callback, this, std::placeholders::_1));
 
-        odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
-            "smoothed_output", 10, std::bind(&WaypointFollowerNode::odom_callback, this, std::placeholders::_1));
+
+            //TEMPORARY CHANGE FOR HOLOOCEAN TESTING
+        // odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
+        //     "smoothed_output", 10, std::bind(&WaypointFollowerNode::odom_callback, this, std::placeholders::_1));
+        odom_sub_ = this->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
+            "/holoocean/auv0/LocationSensor", 10, std::bind(&WaypointFollowerNode::odom_callback, this, std::placeholders::_1));
         
+        // Subscribe to HoloOcean's IMU for simulation testing
         imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
-            "modem_imu", 10, std::bind(&WaypointFollowerNode::imu_callback, this, std::placeholders::_1));
+            "/holoocean/auv0/IMUSensor", 10, std::bind(&WaypointFollowerNode::imu_callback, this, std::placeholders::_1));
 
         // Load waypoints but do not start the mission
         if (load_waypoints()) {
@@ -127,11 +133,26 @@ private:
         }
     }
 
-    // Callback for odometry data (current position)
-    void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
+    // Callback for odometry data (current position and orientation)
+    //TODO: Change back to odom when not testing with HoloOcean
+    // void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
+    void odom_callback(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg)
     {
         current_x_ = msg->pose.pose.position.x;
         current_y_ = msg->pose.pose.position.y;
+        
+        // Extract heading from orientation quaternion
+        tf2::Quaternion q(
+            msg->pose.pose.orientation.x,
+            msg->pose.pose.orientation.y,
+            msg->pose.pose.orientation.z,
+            msg->pose.pose.orientation.w);
+        tf2::Matrix3x3 m(q);
+        double roll, pitch, yaw;
+        m.getRPY(roll, pitch, yaw); // Roll, Pitch, Yaw in radians
+        
+        // Convert yaw from radians to degrees for the controller
+        current_heading_degrees_ = normalize_angle_degrees(yaw * 180.0 / M_PI);
     }
 
     // Callback for IMU data (current heading)
@@ -197,8 +218,8 @@ private:
         double desired_heading_deg = normalize_angle_degrees(desired_heading_rad * 180.0 / M_PI);
         
         publish_control_commands(desired_heading_deg, target_wp.depth, desired_travel_speed_);
-        RCLCPP_DEBUG(this->get_logger(), "Publishing: Desired Heading: %.2f deg, Desired Depth: %.2f m, Desired Speed: %.2f",
-                         desired_heading_deg, target_wp.depth, desired_travel_speed_);
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "Commands: Heading: %.2f deg (current: %.2f), Depth: %.2f m, Speed: %.2f",
+                         desired_heading_deg, current_heading_degrees_, target_wp.depth, desired_travel_speed_);
     }
 
     // Publish control commands
@@ -284,7 +305,7 @@ private:
     rclcpp::Publisher<cougars_interfaces::msg::DesiredDepth>::SharedPtr desired_depth_pub_;
     rclcpp::Publisher<cougars_interfaces::msg::DesiredHeading>::SharedPtr desired_heading_pub_;
     rclcpp::Publisher<cougars_interfaces::msg::DesiredSpeed>::SharedPtr desired_speed_pub_;
-    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr odom_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
     rclcpp::Subscription<cougars_interfaces::msg::SystemControl>::SharedPtr system_control_sub_;
     rclcpp::TimerBase::SharedPtr control_loop_timer_;

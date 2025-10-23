@@ -1,6 +1,6 @@
 import sys
 import os
-import launch
+# import launch
 from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.actions import IncludeLaunchDescription
@@ -18,8 +18,9 @@ def generate_launch_description():
     sim = "false"
     verbose = "false"
     param_file = '/home/frostlab/config/vehicle_params.yaml'
+    fleet_param = '/home/frostlab/config/fleet_params.yaml'
     namespace = 'coug4'
-    mission_file = '/home/frostlab/config/test_mission.yaml' # Default mission file
+    # mission_file = '/home/frostlab/config/test_mission.yaml' # Default mission file
     GPS = "false"  # Initialize GPS to false (default)
 
     # --- Diagnostic Print for sys.argv ---
@@ -31,6 +32,8 @@ def generate_launch_description():
             namespace = arg_val.split(':=', 1)[1]
         elif arg_val.startswith('param_file:='):
             param_file = arg_val.split(':=', 1)[1]
+        elif arg_val.startswith('fleet_param:='):  # Add fleet_param handling
+            fleet_param = arg_val.split(':=', 1)[1]
         elif arg_val.startswith("sim:="):
             sim = arg_val.split(":=", 1)[1].lower()
         elif arg_val.startswith("verbose:="):
@@ -39,8 +42,8 @@ def generate_launch_description():
             parsed_gps_value = arg_val.split(":=", 1)[1].lower()
             print(f"[INFO] [launch] Found GPS argument: '{arg_val}', Parsed value: '{parsed_gps_value}'")
             GPS = parsed_gps_value
-        elif arg_val.startswith("mission_file:="):
-            mission_file = arg_val.split(":=", 1)[1]
+        # elif arg_val.startswith("mission_file:="):
+        #     mission_file = arg_val.split(":=", 1)[1]
 
     # --- Diagnostic Print for GPS flag ---
     print(f"[INFO] [launch] Final Parsed GPS flag: '{GPS}' (Type: {type(GPS)})")
@@ -52,9 +55,9 @@ def generate_launch_description():
     localization_pkg_dir = get_package_share_directory('cougars_localization')
     # config_pkg_dir = get_package_share_directory('config')
 
-    # --- Mission File Path ---
-    mission_yaml_path = mission_file
-    print(f"[INFO] [launch] Using mission file: {mission_yaml_path}")
+    # # --- Mission File Path ---
+    # mission_yaml_path = mission_file
+    # print(f"[INFO] [launch] Using mission file: {mission_yaml_path}")
 
     # --- Launch Actions List (Initialize) ---
     launch_actions = []
@@ -71,7 +74,14 @@ def generate_launch_description():
     converters_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(localization_pkg_dir, 'launch', "converters_launch.py")
-        )
+        ),
+        launch_arguments={
+            'namespace': namespace,
+            'sim': sim,
+            'param_file': param_file,
+            'fleet_param': fleet_param,  # Add fleet_param
+            'verbose': verbose,
+        }.items()
     )
     launch_actions.append(converters_launch)
 
@@ -87,7 +97,8 @@ def generate_launch_description():
             namespace=namespace,
             output='screen',
             parameters=[
-                {'waypoint_file_path': mission_yaml_path},
+                param_file,
+                fleet_param,
                 {'slip_radius': 3.0},
                 {'desired_travel_speed': 25.0},
                 {'loop_rate': 5.0}
@@ -101,8 +112,13 @@ def generate_launch_description():
             name='waypoint_follower_node',
             namespace=namespace,
             output='screen',
-            parameters=[param_file]
-            
+            parameters=[
+                param_file,
+                fleet_param,
+                {'slip_radius': 3.0},
+                {'desired_travel_speed': 25.0},
+                {'loop_rate': 5.0}
+            ]
         )
 
     # --- Define Other Standard Nodes ---
@@ -110,7 +126,7 @@ def generate_launch_description():
         package='cougars_control',
         executable='coug_controls',
         namespace=namespace,
-        parameters=[param_file],
+        parameters=[param_file, fleet_param],
         output=output_config,
     )
 
