@@ -45,7 +45,6 @@ public:
   }
 
   void dvl_data_callback(const dvl_msgs::msg::DVL::SharedPtr msg) {
-
         geometry_msgs::msg::TwistWithCovarianceStamped stamped_msg;
     // This is if we copy the time when it recieves the data
     // stamped_msg.header.stamp = msg->header.stamp;
@@ -56,18 +55,25 @@ public:
     stamped_msg.header.stamp.nanosec = static_cast<uint32_t>((time - stamped_msg.header.stamp.sec) * 1e9);
 
     // filling in the upper left corner of the 6X6 covariance matrix
-    // HANDLE CASE WHEN COVARIANCE IS EMPTY?
     int index = 0;
     double defaultValue = 0;
-    for (int i = 0; i < 36; i++) {
-            if (i % 6 < 3 && i < 15) {
-        stamped_msg.twist.covariance[i] = msg->covariance[index];
-        index++;
-      } else {
+    if(msg->covariance.size() < 9) { // if covariance is empty, don't index into it
+      for (int i = 0; i < 36; i++) {
         stamped_msg.twist.covariance[i] = defaultValue;
       }
+    } else {
+      // fill in the top left 3 by 3 square in 6 by 6 covariance matrix
+      for (int i = 0; i < 36; i++) {
+        if (i % 6 < 3 && i < 15) {
+          stamped_msg.twist.covariance[i] = msg->covariance[index]; // causing issues
+          index++;
+        } else {
+          stamped_msg.twist.covariance[i] = defaultValue;
+        }
+      }
     }
-    
+
+
     stamped_msg.twist.twist.linear.x = msg->velocity.x;
     // negate z and y -- will this mess with covariance?
     stamped_msg.twist.twist.linear.y = -1.0 * msg->velocity.y;
@@ -80,6 +86,7 @@ public:
     else{
       RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 4000, "Velocity not valid!");
     }
+
   }
 
   float degreesToRadians(float degrees) {
@@ -87,7 +94,6 @@ public:
   }
 
   void dvl_pos_callback(const dvl_msgs::msg::DVLDR::SharedPtr msg) {
-
     geometry_msgs::msg::PoseWithCovarianceStamped stamped_msg;
     stamped_msg.header.stamp = msg->header.stamp;
 
