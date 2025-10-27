@@ -52,6 +52,8 @@ class RFBridge(Node):
         self.latest_depth = "NO_DATA"
         self.latest_pressure = "NO_DATA"
 
+        self.thruster_enable = False
+
         self.vehicle_id = self.declare_parameter('vehicle_ID', 0).value
         self.base_station_id = self.declare_parameter('base_station_id', 15).value
 
@@ -94,7 +96,7 @@ class RFBridge(Node):
             DVLDR,
             'dvl/position',
             self.dvl_callback,
-            10)
+            self.dvl_qos)
         
         self.depth_sub = self.create_subscription(
             PoseWithCovarianceStamped,
@@ -237,8 +239,7 @@ class RFBridge(Node):
                 message_type = data.get("message")
             else:
                 message_type = data
-            if payload != "PING":
-                self.get_logger().info(f"Received message: {message_type} {payload}")
+            
             self.get_logger().debug(f"Published message: {payload}")
             if message_type == "STATUS":
                 response = self.get_all_status_data()
@@ -277,6 +278,13 @@ class RFBridge(Node):
         
         # Extract command data from nested structure
         command_data = msg.get("command", {})
+
+        if self.thruster_enable != command_data.get('enable', False):
+            self.thruster_enable = command_data.get('enable', False)
+            enable = SetBool.Request()
+            enable.data = self.thruster_enable
+            self.e_kill_client.call_async(enable)
+
         
         # fin field expects an array of 4 floats
         fin_value = command_data.get("fin", [0.0, 0.0, 0.0, 0.0])
