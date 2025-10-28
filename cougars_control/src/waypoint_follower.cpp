@@ -38,20 +38,22 @@ struct LLA {
 class WaypointFollowerNode : public rclcpp::Node
 {
 public:
-    WaypointFollowerNode() : Node("waypoint_follower"), current_waypoint_index_(0), mission_loaded_(false), mission_active_(false)
+    WaypointFollowerNode() : Node("waypoint_follower"), current_waypoint_index_(0), mission_loaded_(false), mission_active_(false), waypoint_captured_(false)
     {
         // Declare and get parameters
         this->declare_parameter<std::string>("mission_file_path", "mission.yaml");
         this->declare_parameter<double>("slip_radius", 2.0); // meters
+        this->declare_parameter<double>("capture_radius", 10.0); // meters
         this->declare_parameter<double>("desired_travel_speed", 20.0); // Non-dimensional
         this->declare_parameter<double>("loop_rate", 10.0); // Hz
         mission_file_path_ = this->get_parameter("mission_file_path").as_string();
         slip_radius_ = this->get_parameter("slip_radius").as_double();
+        capture_radius_ = this->get_parameter("capture_radius").as_double();
         desired_travel_speed_ = this->get_parameter("desired_travel_speed").as_double();
         loop_rate_ = this->get_parameter("loop_rate").as_double();
 
         RCLCPP_INFO(this->get_logger(), "Waypoint file path: %s", mission_file_path_.c_str());
-        RCLCPP_INFO(this->get_logger(), "Slip radius: %.2f m", slip_radius_);
+        RCLCPP_INFO(this->get_logger(), "Slip radius: %.2f m | Capture radius: %.2f m", slip_radius_, capture_radius_);
         RCLCPP_INFO(this->get_logger(), "Desired travel speed: %.2f", desired_travel_speed_);
 
         // Publishers
@@ -71,9 +73,9 @@ public:
         odom_sub_ = this->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
             "/holoocean/auv0/LocationSensor", 10, std::bind(&WaypointFollowerNode::odom_callback, this, std::placeholders::_1));
         
-        // Subscribe to HoloOcean's IMU for simulation testing
+        // Subscribe to modem_imu for heading (same topic used by coug_controls)
         imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
-            "/holoocean/auv0/IMUSensor", 10, std::bind(&WaypointFollowerNode::imu_callback, this, std::placeholders::_1));
+            "modem_imu", 10, std::bind(&WaypointFollowerNode::imu_callback, this, std::placeholders::_1));
 
         // Load waypoints but do not start the mission
         if (load_waypoints()) {
@@ -133,26 +135,16 @@ private:
         }
     }
 
-    // Callback for odometry data (current position and orientation)
-    //TODO: Change back to odom when not testing with HoloOcean
-    // void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
+    // Callback for odometry data (current position only)
+    // NOTE: HoloOcean LocationSensor doesn't publish orientation, only position
+    // Heading comes from IMU callback instead
     void odom_callback(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg)
     {
         current_x_ = msg->pose.pose.position.x;
         current_y_ = msg->pose.pose.position.y;
         
-        // Extract heading from orientation quaternion
-        tf2::Quaternion q(
-            msg->pose.pose.orientation.x,
-            msg->pose.pose.orientation.y,
-            msg->pose.pose.orientation.z,
-            msg->pose.pose.orientation.w);
-        tf2::Matrix3x3 m(q);
-        double roll, pitch, yaw;
-        m.getRPY(roll, pitch, yaw); // Roll, Pitch, Yaw in radians
-        
-        // Convert yaw from radians to degrees for the controller
-        current_heading_degrees_ = normalize_angle_degrees(yaw * 180.0 / M_PI);
+        RCLCPP_DEBUG_THROTTLE(this->get_logger(), *this->get_clock(), 2000, 
+                     "Position update: (%.2f, %.2f)", current_x_, current_y_);
     }
 
     // Callback for IMU data (current heading)
@@ -168,7 +160,7 @@ private:
         m.getRPY(roll, pitch, yaw); // Roll, Pitch, Yaw in radians
         
         // Convert yaw from radians to degrees for the controller
-        current_heading_degrees_ = normalize_angle_degrees(yaw * 180.0 / M_PI); 
+        current_heading_degrees_ = normalize_angle_degrees(yaw * 180.0 / M_PI);
     }
 
     // Main control loop
@@ -201,14 +193,18 @@ private:
         const auto& target_wp = waypoints_[current_waypoint_index_];
         double distance_to_target = calculate_distance(current_x_, current_y_, target_wp.enu_x, target_wp.enu_y);
 
-        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
-                       "Active: Pos(%.2f, %.2f) -> WP %d(%.2f, %.2f) | Dist: %.2f m | Slip Radius: %.2f m",
-                       current_x_, current_y_, target_wp.id, target_wp.enu_x, target_wp.enu_y, distance_to_target, slip_radius_);
+        // Check if waypoint is captured (within capture radius)
+        if (distance_to_target < capture_radius_ && !waypoint_captured_) {
+            waypoint_captured_ = true;
+            RCLCPP_INFO(this->get_logger(), "🎯 Captured WP%d at %.1fm", target_wp.id, distance_to_target);
+        }
 
-        // Check if the waypoint has been reached
+        // Check if the waypoint has been reached (within slip radius)
         if (distance_to_target < slip_radius_) {
-            RCLCPP_INFO(this->get_logger(), "Reached waypoint %d. Moving to next.", target_wp.id);
+            RCLCPP_INFO(this->get_logger(), "✓ Reached WP%d | Next target: WP%zu", 
+                       target_wp.id, current_waypoint_index_ + 2);
             current_waypoint_index_++;
+            waypoint_captured_ = false; // Reset for next waypoint
             // Exit and wait for the next timer tick to process the new waypoint or mission completion
             return;
         }
@@ -218,8 +214,15 @@ private:
         double desired_heading_deg = normalize_angle_degrees(desired_heading_rad * 180.0 / M_PI);
         
         publish_control_commands(desired_heading_deg, target_wp.depth, desired_travel_speed_);
-        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "Commands: Heading: %.2f deg (current: %.2f), Depth: %.2f m, Speed: %.2f",
-                         desired_heading_deg, current_heading_degrees_, target_wp.depth, desired_travel_speed_);
+        
+        // Clean, compact status update with capture status
+        std::string status = waypoint_captured_ ? "CAPTURED" : "seeking";
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, 
+                       "WP%d [%s]: %.1fm | Hdg: %.0f°→ %.0f° (err:%.0f°) | Spd: %.0f",
+                       target_wp.id, status.c_str(), distance_to_target, 
+                       current_heading_degrees_, desired_heading_deg, 
+                       desired_heading_deg - current_heading_degrees_,
+                       desired_travel_speed_);
     }
 
     // Publish control commands
@@ -313,6 +316,7 @@ private:
     // Parameters
     std::string mission_file_path_;
     double slip_radius_;
+    double capture_radius_;
     double desired_travel_speed_;
     double loop_rate_;
 
@@ -322,6 +326,7 @@ private:
     size_t current_waypoint_index_;
     bool mission_loaded_;
     bool mission_active_;
+    bool waypoint_captured_;
 
     // Vehicle State
     double current_x_;

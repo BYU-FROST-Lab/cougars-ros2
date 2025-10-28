@@ -98,10 +98,7 @@ def generate_launch_description():
             output='screen',
             parameters=[
                 param_file,
-                fleet_param,
-                {'slip_radius': 3.0},
-                {'desired_travel_speed': 25.0},
-                {'loop_rate': 5.0}
+                fleet_param
             ]
         )
     else:
@@ -114,10 +111,7 @@ def generate_launch_description():
             output='screen',
             parameters=[
                 param_file,
-                fleet_param,
-                {'slip_radius': 3.0},
-                {'desired_travel_speed': 25.0},
-                {'loop_rate': 5.0}
+                fleet_param
             ]
         )
 
