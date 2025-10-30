@@ -252,15 +252,13 @@ class RFBridge(Node):
                 self.get_logger().debug(f"Received PING, responding with PING")
             elif message_type == "E_KILL":
                 self.get_logger().info(f"Received E_KILL message")
-                self.kill_thruster()
+                self.kill_thruster(return_address)
             elif message_type == "INIT":
-                init_msg = String()
-                init_msg.data = "INIT_COMMAND"
-                self.init_publisher.publish(init_msg)
-                self.get_logger().info(f"Received INIT, published to init topic")
+                self.get_logger().info(f"Received INIT command {data}")
+                self.init_vehicle(data)
                 self.device.send_data_broadcast("INIT_ACK")
             elif message_type == "KEY_CONTROL":
-                self.get_logger().info(f"Received KEY_CONTROL command {data}")
+                self.get_logger().debug(f"Received KEY_CONTROL command {data}")
                 self.handle_key_control(data)
             elif message_type == "FILE_START":
                 self.handle_file_start(data, return_address)
@@ -273,7 +271,7 @@ class RFBridge(Node):
             # self.get_logger().error(traceback.format_exc())
 
     def handle_key_control(self, msg):
-        self.get_logger().info(f"recieved key control through radio {msg}")
+        # self.get_logger().info(f"recieved key control through radio {msg}")
         ucommand_msg = UCommand()
         
         # Extract command data from nested structure
@@ -289,30 +287,35 @@ class RFBridge(Node):
         # fin field expects an array of 4 floats
         fin_value = command_data.get("fin", [0.0, 0.0, 0.0, 0.0])
         fin_value[0] += 5
-        self.get_logger().info(f"fin value: {fin_value}")
+        # self.get_logger().info(f"fin value: {fin_value}")
         ucommand_msg.fin = [float(f) for f in fin_value]
         
         # Get throttle value from command data
         ucommand_msg.thruster = command_data.get("throttle", 0)
-        self.get_logger().info(f"thruster value: {ucommand_msg.thruster}")
+        # self.get_logger().info(f"thruster value: {ucommand_msg.thruster}")
         self.ucommand_pub.publish(ucommand_msg)
 
     
     def init_vehicle(self, msg):
+        self.get_logger().info("Initializing vehicle with received parameters")
         init_msg = SystemControl()
-        init_msg.start = Bool(data=msg["start"])
-        init_msg.rosbag_flag = Bool(data=msg["rosbag_flag"])
-        init_msg.rosbag_prefix = msg["rosbag_prefix"]
-        init_msg.thruster_arm = Bool(data=msg["thruster_arm"])
-        init_msg.dvl_acoustics = Bool(data=msg["dvl_acoustics"])
+        init_msg.header.stamp = self.get_clock().now().to_msg()
+        init_msg.start.data = msg.get("start", False)
+        init_msg.rosbag_flag.data = msg.get("rosbag_flag", False)
+        init_msg.rosbag_prefix = msg.get("rosbag_prefix", "")
+        init_msg.thruster_arm.data = msg.get("thruster_arm", False)
+        init_msg.dvl_acoustics.data = msg.get("dvl_acoustics", False)
+        
         self.init_publisher.publish(init_msg)
-        self.get_logger().info(f"Received INIT, published to init topic")
-        self.device.send_data_broadcast(
-                json.dumps({
-                    "src_id": self.vehicle_id,
-                    "message": "INIT"
-                })
-        )
+        self.get_logger().info(f"Published INIT message with parameters: start={init_msg.start.data}, rosbag={init_msg.rosbag_flag.data}, thruster_arm={init_msg.thruster_arm.data}, dvl_acoustics={init_msg.dvl_acoustics.data}")
+        
+        # Send acknowledgment back to base station
+        response = {
+            "src_id": self.vehicle_id,
+            "message": "INIT_ACK",
+            "status": "received"
+        }
+        self.device.send_data_broadcast(json.dumps(response))
 
     
     def kill_thruster(self, return_address):
