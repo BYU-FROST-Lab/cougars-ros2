@@ -142,6 +142,14 @@ def generate_launch_description():
             namespace=LaunchConfiguration('namespace'),
             output='log',
         ), 
+        launch_ros.actions.Node(
+            package='cougars_bringup',
+            executable='param_reloader.py',
+            name='param_reloader',
+            parameters=[{'param_file_path': LaunchConfiguration('param_file')}],
+            namespace=LaunchConfiguration('namespace'),
+            output='log',
+        ),
         
     ])
 
