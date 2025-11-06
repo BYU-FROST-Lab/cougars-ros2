@@ -28,6 +28,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/ControlsDebug.msg"
   "msg/SystemControl.msg"
   "msg/SystemStatus.msg"
+  "msg/WayPoint.msg"
   "msg/LocalizationDataShort.msg"
   DEPENDENCIES std_msgs
   DEPENDENCIES nav_msgs
