@@ -9,6 +9,7 @@ from sensor_msgs.msg import BatteryState, FluidPressure
 from geometry_msgs.msg import TwistWithCovarianceStamped, PoseWithCovarianceStamped
 from dvl_msgs.msg import DVLDR
 from std_srvs.srv import SetBool
+from cougars_msgs.msg import SystemStatus, Waypoint
 
 from digi.xbee.devices import XBeeDevice, RemoteXBeeDevice, XBee64BitAddress
 from digi.xbee.exception import TransmitException
@@ -70,6 +71,7 @@ class RFBridge(Node):
         self.latest_battery = "NO_DATA"
         self.latest_depth = "NO_DATA"
         self.latest_pressure = "NO_DATA"
+        self.latest_waypoint_data = "NO_DATA"
 
         self.vehicle_id = self.declare_parameter('vehicle_id', 0).value
         self.base_station_id = self.declare_parameter('base_station_id', 15).value
@@ -126,6 +128,12 @@ class RFBridge(Node):
             'pressure/data',
             self.pressure_callback,
             10)
+        
+        self.waypoint_sub = self.create_subscription(
+            Waypoint,
+            'current_waypoint',
+            self.waypoint_callback,
+            10)
 
 
         # Register XBee data receive callback
@@ -170,6 +178,15 @@ class RFBridge(Node):
                 "depth": float(pose.position.z),
             }
             self.get_logger().debug("Updated depth data")
+    
+    def waypoint_callback(self, msg):
+        self.latest_waypoint_data = {
+            "w_n": int(msg.waypoint_num),
+            "x": float(msg.x),
+            "y": float(msg.y),
+            "d": float(msg.depth),
+        }
+        self.get_logger().debug("Updated waypoint data")
 
     def pressure_callback(self, msg):
         if hasattr(msg, 'fluid_pressure'):
@@ -208,6 +225,7 @@ class RFBridge(Node):
             "battery_state": self.latest_battery,
             "depth_data": self.latest_depth,
             "pressure_data": self.latest_pressure,
+            "waypoint_data": self.latest_waypoint_data
         }
         data_dict = {k: v for k, v in data_dict.items() if v and v != "NO_DATA"}
         return json.dumps(data_dict, separators=(',', ':'))
