@@ -120,8 +120,8 @@ private:
                 current_waypoint_index_ = 0; // Reset to the first waypoint
                 cougars_interfaces::msg::WayPoint current_waypoint;
                 current_waypoint.waypoint_num = current_waypoint_index_ + 1; // +1 because index is 0-based and we want next WP number
-                current_waypoint.lat = waypoints_[current_waypoint_index_].enu_x; // Placeholder, convert ENU to L
-                current_waypoint.lon = waypoints_[current_waypoint_index_].enu_y; // Placeholder, convert ENU to L
+                current_waypoint.x = waypoints_[current_waypoint_index_].enu_x; // Placeholder, convert ENU to L
+                current_waypoint.y = waypoints_[current_waypoint_index_].enu_y; // Placeholder, convert ENU to L
                 current_waypoint.depth = waypoints_[current_waypoint_index_].depth; 
                 current_waypoint_pub_->publish(current_waypoint);
             } else {
@@ -214,8 +214,9 @@ private:
             current_waypoint_index_++;
             cougars_interfaces::msg::WayPoint current_waypoint;
             current_waypoint.waypoint_num = current_waypoint_index_ + 1; // +1 because index is 0-based and we want next WP number
-            current_waypoint.lat = waypoints_[current_waypoint_index_].enu_x; // Placeholder, convert ENU to L
-            current_waypoint.lon = waypoints_[current_waypoint_index_].enu_y; // Placeholder, convert ENU to L
+            current_waypoint.x = waypoints_[current_waypoint_index_].enu_x; // Placeholder, convert ENU to L
+            current_waypoint.y = waypoints_[current_waypoint_index_].enu_y; // Placeholder, convert ENU to L
+            current_waypoint.depth = waypoints_[current_waypoint_index_].depth;
             current_waypoint_pub_->publish(current_waypoint);
             waypoint_captured_ = false; // Reset for next waypoint
             // Exit and wait for the next timer tick to process the new waypoint or mission completion

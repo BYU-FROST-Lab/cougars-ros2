@@ -183,6 +183,15 @@ class RFBridge(Node):
             }
             self.get_logger().debug("Updated depth data")
     
+    def waypoint_callback(self, msg):
+        self.latest_waypoint_data = {
+            "wp_n": self.safe_numeric_convert(msg.waypoint_num, int),
+            "x": self.safe_numeric_convert(msg.x, float),
+            "y": self.safe_numeric_convert(msg.y, float),
+            "d": self.safe_numeric_convert(msg.depth, float)
+        }
+        self.get_logger().debug("Updated waypoint data")
+    
     def pressure_callback(self, msg):
         self.latest_pressure = {
             "pres": self.safe_numeric_convert(msg.fluid_pressure, float),
@@ -221,6 +230,7 @@ class RFBridge(Node):
             "dv": self.latest_dvl_pos,
             "b": self.latest_battery,
             "d": self.latest_depth,
+            "w": self.latest_waypoint_data,
             "p": self.latest_pressure,
         }
         data_dict = {k: v for k, v in data_dict.items() if v and v != "NO_DATA"}

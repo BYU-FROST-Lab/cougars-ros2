@@ -1,4 +1,4 @@
-# Waypoint Message
+# WayPoint Message
 
 std_msgs/Header header
 
@@ -6,10 +6,10 @@ std_msgs/Header header
 int32 waypoint_num
 
 # latitude
-float32 lat
+float32 x
 
 # longitude
-float32 lon
+float32 y
 
 # depth
 float32 depth
