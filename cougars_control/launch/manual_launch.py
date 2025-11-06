@@ -142,16 +142,6 @@ def generate_launch_description():
             namespace=LaunchConfiguration('namespace'),
             output='log',
         ), 
-
-
-        # Start the rf_bridge node
-        # launch_ros.actions.Node(
-        #     package='cougars_coms',
-        #     executable='rf_bridge.py',
-        #     parameters=[LaunchConfiguration('param_file')],
-        #     namespace=LaunchConfiguration('namespace'),
-        #     output='log',
-        # ), 
         
     ])
 
