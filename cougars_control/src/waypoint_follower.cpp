@@ -177,7 +177,7 @@ private:
         // State 1: Mission not loaded or waypoints are empty. Hold position.
         if (!mission_loaded_ || waypoints_.empty()) {
             RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "Mission not loaded or is empty. Holding position.");
-            publish_control_commands(current_heading_degrees_, 0.5, 0.0); // Default hold depth, zero speed
+            // publish_control_commands(current_heading_degrees_, 0.5, 0.0); // Default hold depth, zero speed
             return;
         }
 
@@ -191,7 +191,7 @@ private:
 
         // State 3: Mission complete. Deactivate and hold at the final waypoint's depth.
         if (current_waypoint_index_ >= waypoints_.size()) {
-            RCLCPP_INFO(this->get_logger(), "All waypoints reached. Mission complete. Deactivating.");
+            RCLCPP_INFO(this->get_logger(), "✅ All waypoints reached. Mission complete. Deactivating.");
             mission_active_ = false; // It will enter State 2 in the next loop
             publish_control_commands(current_heading_degrees_, waypoints_.back().depth, 0.0);
             return;
@@ -204,12 +204,12 @@ private:
         // Check if waypoint is captured (within capture radius)
         if (distance_to_target < capture_radius_ && !waypoint_captured_) {
             waypoint_captured_ = true;
-            RCLCPP_INFO(this->get_logger(), "🎯 Captured WP%d at %.1fm", target_wp.id, distance_to_target);
+            RCLCPP_INFO(this->get_logger(), "✨ Captured WP%d at %.1fm", target_wp.id, distance_to_target);
         }
 
         // Check if the waypoint has been reached (within slip radius)
         if (distance_to_target < slip_radius_) {
-            RCLCPP_INFO(this->get_logger(), "✓ Reached WP%d | Next target: WP%zu", 
+            RCLCPP_INFO(this->get_logger(), "🎯 Reached WP%d | Next target: WP%zu", 
                        target_wp.id, current_waypoint_index_ + 2);
             current_waypoint_index_++;
             cougars_interfaces::msg::WayPoint current_waypoint;
@@ -231,7 +231,7 @@ private:
         
         // Clean, compact status update with capture status
         std::string status = waypoint_captured_ ? "CAPTURED" : "seeking";
-        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, 
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 3000, 
                        "WP%d [%s]: %.1fm | Hdg: %.0f°→ %.0f° (err:%.0f°) | Spd: %.0f",
                        target_wp.id, status.c_str(), distance_to_target, 
                        current_heading_degrees_, desired_heading_deg, 
