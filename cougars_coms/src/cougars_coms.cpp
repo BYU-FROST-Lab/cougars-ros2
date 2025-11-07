@@ -414,7 +414,8 @@ private:
     float roll;
     float pitch;
     float yaw;
-    float depth; 
+    float depth;
+     
 
     float recent_range;
     float recent_azimuth;
