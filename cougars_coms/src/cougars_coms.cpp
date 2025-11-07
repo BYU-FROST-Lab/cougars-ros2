@@ -17,6 +17,7 @@
 #include "cougars_interfaces/msg/localization_data.hpp"
 #include "cougars_interfaces/msg/localization_data_short.hpp"
 #include "cougars_interfaces/msg/system_control.hpp"
+#include "cougars_interfaces/msg/way_point.hpp"
 
 #include <seatrac_driver/SeatracEnums.h>
 
@@ -74,6 +75,16 @@ public:
 
             [this](geometry_msgs::msg::PoseWithCovarianceStamped msg) {
                 this->depth = msg.pose.pose.position.z;
+            }
+        );
+
+        this->waypoint_subscriber_ = this->create_subscription<cougars_interfaces::msg::WayPoint>(
+            "current_waypoint", 10,
+            [this](cougars_interfaces::msg::WayPoint msg) {
+                this->waypoint_num = static_cast<uint8_t>(msg.waypoint_num);
+                this->waypoint_x = static_cast<uint16_t>(msg.x);
+                this->waypoint_y = static_cast<uint16_t>(msg.y);
+                this->waypoint_depth = static_cast<uint8_t>(msg.depth); 
             }
         );
 
@@ -276,11 +287,14 @@ public:
         VehicleStatus status_msg;
 
         //fill in x and y depending on whether we are using factor graph or DVL
+        status_msg.waypoint_num = 0; // Placeholder, set to 0 for now
+        status_msg.waypoint_x = this->position_x;
+        status_msg.waypoint_y = this->position_y;
+        status_msg.waypoint_depth = this->position_z;
+        
         status_msg.x = this->dvl_position_x;
         status_msg.y = this->dvl_position_y;
-        status_msg.waypoint = 0;
         status_msg.battery_voltage = this->battery_voltage;
-        status_msg.battery_percentage = this->battery_percentage;
         status_msg.safety_mask = this->safety_mask;
         status_msg.roll = this->roll;
         status_msg.pitch = this->pitch;
@@ -383,6 +397,7 @@ private:
     rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr depth_subscriber_;
     rclcpp::Subscription<dvl_msgs::msg::DVLDR>::SharedPtr dvl_subscriber_;
     rclcpp::Subscription<dvl_msgs::msg::DVL>::SharedPtr dvl_vel_subscriber_;
+    rclcpp::Subscription<cougars_interfaces::msg::WayPoint>::SharedPtr waypoint_subscriber_;
 
     rclcpp::Publisher<cougars_interfaces::msg::LocalizationData>::SharedPtr localization_data_publisher_;
     rclcpp::Publisher<cougars_interfaces::msg::LocalizationDataShort>::SharedPtr localization_data_short_publisher_;
@@ -404,9 +419,12 @@ private:
     uint8_t base_station_beacon_id_;
     uint8_t safety_mask;
     uint8_t battery_voltage;
-    uint8_t battery_percentage;
     uint8_t heading;
     uint8_t pressure;
+    uint8_t waypoint_num;
+    uint16_t waypoint_x;
+    uint16_t waypoint_y;
+    uint8_t waypoint_depth;
 
     float dvl_position_x;
     float dvl_position_y;
