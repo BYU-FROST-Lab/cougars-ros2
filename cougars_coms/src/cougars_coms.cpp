@@ -12,9 +12,11 @@
 #include "sensor_msgs/msg/battery_state.hpp"
 #include "geometry_msgs/msg/twist_with_covariance_stamped.hpp"
 #include "dvl_msgs/msg/dvldr.hpp"
+#include "dvl_msgs/msg/dvl.hpp"
 #include "cougars_interfaces/msg/system_status.hpp"
 #include "cougars_interfaces/msg/localization_data.hpp"
 #include "cougars_interfaces/msg/localization_data_short.hpp"
+#include "cougars_interfaces/msg/system_control.hpp"
 
 #include <seatrac_driver/SeatracEnums.h>
 
@@ -40,19 +42,12 @@ public:
     ComsNode() : Node("cougars_coms") {
 
         // id of base station beacon, used for messages sent to the base station
-        this->declare_parameter<int>("base_station_beacon_id", 15);
-        this->base_station_beacon_id_ = this->get_parameter("base_station_beacon_id").as_int();
+        this->base_station_beacon_id_ = this->declare_parameter<int>("base_station_beacon_id", 15);
 
         //buffer between immediate response to localization requests and secondary packet response
-        this->declare_parameter<int>("localization_queue_buffer_ms", 1000);
-        this->localization_queue_buffer = this->get_parameter("localization_queue_buffer_ms").as_int();
+        this->localization_queue_buffer = this->declare_parameter<int>("localization_queue_buffer_ms", 1000);
 
-        // whether to use factor graph for status message
-        this->declare_parameter<bool>("use_factor_graph", false);
-        this->use_factor_graph_ = this->get_parameter("use_factor_graph").as_bool();
-
-        this->declare_parameter<double>("collision_guard_wait_sec", 3.0);
-        this->collision_guard_wait_ = this->get_parameter("collision_guard_wait_sec").as_double();
+        this->collision_guard_wait_ = this->declare_parameter<double>("collision_guard_wait_sec", 3.0);
 
 
         // subscriber for safety status messages
@@ -94,7 +89,16 @@ public:
                 this->yaw = msg.yaw;
             }
         );
-        
+
+        this->dvl_vel_subscriber_ = this->create_subscription<dvl_msgs::msg::DVL>(
+            "dvl/data", 10,
+            [this](dvl_msgs::msg::DVL msg) {
+                this->velocity_x = msg.velocity.x;
+                this->velocity_y = msg.velocity.y;
+                this->velocity_z = msg.velocity.z;
+            }
+        );
+
         // subscriber to modem rec messages, sent when the modem receives a message
         this->modem_subscriber_ = this->create_subscription<seatrac_interfaces::msg::ModemRec>(
             "modem_rec", 10,
@@ -114,6 +118,11 @@ public:
             "surface"
         );
 
+        // publisher to start mission
+        this->init_publisher_ = this->create_publisher<cougars_interfaces::msg::SystemControl>(
+            "system/status", 10
+        );
+
         // publisher for full localization data
         this->localization_data_publisher_ = this->create_publisher<cougars_interfaces::msg::LocalizationData>("localization_data", 10);
 
@@ -121,7 +130,7 @@ public:
         this->localization_data_short_publisher_ = this->create_publisher<cougars_interfaces::msg::LocalizationDataShort>("localization_data_short", 10);
 
         // timer for queuing localization responses
-        this->localization_response_timer_ = this->create_wall_timer(
+        this->localization_queue_timer_ = this->create_wall_timer(
             std::chrono::milliseconds(this->localization_queue_buffer),
             std::bind(&ComsNode::queue_localization_response, this)
         );
@@ -141,14 +150,17 @@ public:
             case EMPTY: {
                 record_range_and_azimuth(msg);
             } break;
-            case EMERGENCY_SURFACE: {
-                emergency_surface();
+            case REQUEST_STATUS: {
+                send_status();
+            } break;
+            case INIT: {
+                init(&msg);
             } break;
             case EMERGENCY_KILL: {
                 kill_thruster();
             } break;
-            case REQUEST_STATUS: {
-                send_status();
+            case EMERGENCY_SURFACE: {
+                emergency_surface();
             } break;
             case LOCALIZATION_INFO: {
                record_localization_info(msg);
@@ -179,12 +191,17 @@ public:
         this->pressure = msg.fluid_pressure; 
     }
 
-    // updates position and velocity data from the smoothed odometry topic
-    void smoothed_odom_callback(nav_msgs::msg::Odometry msg) {
-        this->position_x = msg.pose.pose.position.x;
-        this->position_y = msg.pose.pose.position.y;
-        this->velocity_x = msg.twist.twist.linear.x;
-        this->velocity_y = msg.twist.twist.linear.y;
+    void init(seatrac_interfaces::msg::ModemRec* msg) {
+        RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Initializing system.");
+        cougars_interfaces::msg::SystemControl control_msg;
+        const Init* msg_recieved = reinterpret_cast<const Init*>(msg->packet_data.data());
+        control_msg.start.data = (msg_recieved->init_bitmask & 0x01) != 0;
+        control_msg.rosbag_flag.data = (msg_recieved->init_bitmask & 0x02) != 0;
+        control_msg.thruster_arm.data = (msg_recieved->init_bitmask & 0x04) != 0;
+        control_msg.dvl_acoustics.data = (msg_recieved->init_bitmask & 0x08) != 0;
+        // turns char[32] to std::string
+        control_msg.rosbag_prefix = std::string(msg_recieved->rosbag_prefix);
+        this->init_publisher_->publish(control_msg);
     }
 
     // kills the thruster using the arm_thruster service
@@ -259,25 +276,19 @@ public:
         VehicleStatus status_msg;
 
         //fill in x and y depending on whether we are using factor graph or DVL
-        if (this->use_factor_graph_) {
-            status_msg.x = this->position_x;
-            status_msg.y = this->position_y;            
-        } else {
-            status_msg.x = this->dvl_position_x;
-            status_msg.y = this->dvl_position_y;
-        }
+        status_msg.x = this->dvl_position_x;
+        status_msg.y = this->dvl_position_y;
         status_msg.waypoint = 0;
         status_msg.battery_voltage = this->battery_voltage;
         status_msg.battery_percentage = this->battery_percentage;
         status_msg.safety_mask = this->safety_mask;
-        status_msg.x = this->position_x;
-        status_msg.y = this->position_y;
         status_msg.roll = this->roll;
         status_msg.pitch = this->pitch;
         status_msg.yaw = this->yaw;
         status_msg.depth = this->depth; 
         status_msg.x_vel = this->velocity_x;
         status_msg.y_vel = this->velocity_y;
+        status_msg.z_vel = this->velocity_z;
         status_msg.pressure = this->pressure;
         send_acoustic_message(base_station_beacon_id_, sizeof(status_msg), (uint8_t*)&status_msg);
     }
@@ -320,13 +331,14 @@ public:
     // checks if the range and azimuth data is included in the message and publishes it if so
    void record_range_and_azimuth(seatrac_interfaces::msg::ModemRec msg) {
         if (msg.includes_range && msg.includes_usbl) {
-            RCLCPP_INFO(this->get_logger(), "Vehicle %d:  Range distance: %d, Azimuth: %i, Elevation: %i", msg.src_id, msg.range_dist, msg.usbl_azimuth, msg.usbl_elevation);
+            RCLCPP_INFO(this->get_logger(), "Vehicle %d:  Range distance: %d, Azimuth: %i, Elevation: %i, depth: %i", msg.src_id, msg.range_dist, msg.usbl_azimuth, msg.usbl_elevation, msg.position_depth);
             cougars_interfaces::msg::LocalizationDataShort localization_data_short;
             localization_data_short.header.stamp = this->now();
             localization_data_short.vehicle_id = msg.src_id;
             localization_data_short.range = msg.range_dist;
             localization_data_short.azimuth = msg.usbl_azimuth;
             localization_data_short.elevation = msg.usbl_elevation;
+            localization_data_short.depth = msg.position_depth;
             this->localization_data_short_publisher_->publish(localization_data_short);
         }
     }
@@ -370,11 +382,13 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::FluidPressure>::SharedPtr pressure_subscriber_;
     rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr depth_subscriber_;
     rclcpp::Subscription<dvl_msgs::msg::DVLDR>::SharedPtr dvl_subscriber_;
+    rclcpp::Subscription<dvl_msgs::msg::DVL>::SharedPtr dvl_vel_subscriber_;
 
     rclcpp::Publisher<cougars_interfaces::msg::LocalizationData>::SharedPtr localization_data_publisher_;
     rclcpp::Publisher<cougars_interfaces::msg::LocalizationDataShort>::SharedPtr localization_data_short_publisher_;
-
     rclcpp::Publisher<seatrac_interfaces::msg::ModemSend>::SharedPtr modem_publisher_;
+    rclcpp::Publisher<cougars_interfaces::msg::SystemControl>::SharedPtr init_publisher_;
+
     rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr thruster_client_;
     rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr surface_client_;
     rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr init_controls_client_;
@@ -386,6 +400,7 @@ private:
     uint8_t position_z;
     uint8_t velocity_x;
     uint8_t velocity_y;
+    uint8_t velocity_z;
     uint8_t base_station_beacon_id_;
     uint8_t safety_mask;
     uint8_t battery_voltage;
@@ -399,7 +414,8 @@ private:
     float roll;
     float pitch;
     float yaw;
-    float depth; 
+    float depth;
+     
 
     float recent_range;
     float recent_azimuth;
@@ -407,7 +423,7 @@ private:
 
     int localization_queue_buffer;
     float collision_guard_wait_;
-    rclcpp::TimerBase::SharedPtr localization_response_timer_;
+    rclcpp::TimerBase::SharedPtr localization_queue_timer_;
     bool use_factor_graph_;
 
     rclcpp::Time last_modem_msg_time_;

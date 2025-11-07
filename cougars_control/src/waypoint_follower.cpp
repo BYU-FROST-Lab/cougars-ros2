@@ -16,6 +16,7 @@
 #include "cougars_interfaces/msg/desired_heading.hpp"
 #include "cougars_interfaces/msg/desired_speed.hpp"
 #include "cougars_interfaces/msg/system_control.hpp" // For system start/stop messages
+#include "cougars_interfaces/msg/way_point.hpp"
 #include "tf2/LinearMath/Quaternion.h"
 #include "tf2/LinearMath/Matrix3x3.h"
 #include "yaml-cpp/yaml.h" // For YAML parsing
@@ -60,6 +61,7 @@ public:
         desired_depth_pub_ = this->create_publisher<cougars_interfaces::msg::DesiredDepth>("desired_depth", 10);
         desired_heading_pub_ = this->create_publisher<cougars_interfaces::msg::DesiredHeading>("desired_heading", 10);
         desired_speed_pub_ = this->create_publisher<cougars_interfaces::msg::DesiredSpeed>("desired_speed", 10);
+        current_waypoint_pub_ = this->create_publisher<cougars_interfaces::msg::WayPoint>("current_waypoint", 10);
 
         // Subscribers
 
@@ -116,6 +118,12 @@ private:
                 RCLCPP_INFO(this->get_logger(), "Received START command for 'waypoint' mission. Activating waypoint follower.");
                 mission_active_ = true;
                 current_waypoint_index_ = 0; // Reset to the first waypoint
+                cougars_interfaces::msg::WayPoint current_waypoint;
+                current_waypoint.waypoint_num = current_waypoint_index_ + 1; // +1 because index is 0-based and we want next WP number
+                current_waypoint.x = waypoints_[current_waypoint_index_].enu_x; // Placeholder, convert ENU to L
+                current_waypoint.y = waypoints_[current_waypoint_index_].enu_y; // Placeholder, convert ENU to L
+                current_waypoint.depth = waypoints_[current_waypoint_index_].depth; 
+                current_waypoint_pub_->publish(current_waypoint);
             } else {
                 std::string type = "undefined";
                 if (mission_yaml_["mission_type"]) {
@@ -204,6 +212,12 @@ private:
             RCLCPP_INFO(this->get_logger(), "🎯 Reached WP%d | Next target: WP%zu", 
                        target_wp.id, current_waypoint_index_ + 2);
             current_waypoint_index_++;
+            cougars_interfaces::msg::WayPoint current_waypoint;
+            current_waypoint.waypoint_num = current_waypoint_index_ + 1; // +1 because index is 0-based and we want next WP number
+            current_waypoint.x = waypoints_[current_waypoint_index_].enu_x; // Placeholder, convert ENU to L
+            current_waypoint.y = waypoints_[current_waypoint_index_].enu_y; // Placeholder, convert ENU to L
+            current_waypoint.depth = waypoints_[current_waypoint_index_].depth;
+            current_waypoint_pub_->publish(current_waypoint);
             waypoint_captured_ = false; // Reset for next waypoint
             // Exit and wait for the next timer tick to process the new waypoint or mission completion
             return;
@@ -308,6 +322,7 @@ private:
     rclcpp::Publisher<cougars_interfaces::msg::DesiredDepth>::SharedPtr desired_depth_pub_;
     rclcpp::Publisher<cougars_interfaces::msg::DesiredHeading>::SharedPtr desired_heading_pub_;
     rclcpp::Publisher<cougars_interfaces::msg::DesiredSpeed>::SharedPtr desired_speed_pub_;
+    rclcpp::Publisher<cougars_interfaces::msg::WayPoint>::SharedPtr current_waypoint_pub_;
     rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr odom_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
     rclcpp::Subscription<cougars_interfaces::msg::SystemControl>::SharedPtr system_control_sub_;
