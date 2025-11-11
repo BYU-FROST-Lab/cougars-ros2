@@ -481,7 +481,7 @@ private:
     return this->get_parameter("seatrac_serial_port").as_string();
   }
 
-  // recieves command to modem from the ModemRec topic and sends the command
+  // receives command to modem from the ModemRec topic and sends the command
   // to the modem
   void modem_send_callback(const seatrac_interfaces::msg::ModemSend::SharedPtr rosmsg) {
     std::lock_guard<std::mutex> lock(send_mutex);  //locks mutex until method exits
