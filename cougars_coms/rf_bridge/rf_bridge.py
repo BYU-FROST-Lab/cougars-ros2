@@ -9,7 +9,7 @@ from sensor_msgs.msg import BatteryState, FluidPressure
 from geometry_msgs.msg import TwistWithCovarianceStamped, PoseWithCovarianceStamped
 from dvl_msgs.msg import DVLDR
 from std_srvs.srv import SetBool
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Empty
 from cougars_interfaces.msg import SystemControl, SystemStatus, UCommand
 
 from digi.xbee.devices import XBeeDevice, RemoteXBeeDevice
@@ -111,6 +111,8 @@ class RFBridge(Node):
             10)
         
         self.ucommand_pub = self.create_publisher(UCommand, 'controls/command', 10)
+
+        self.reload_params_pub = self.create_publisher(Empty, f'coug{self.vehicle_id}/reload_parameters', 10)
 
 
         # Register XBee data receive callback
@@ -513,6 +515,7 @@ class RFBridge(Node):
             shutil.copy2(received_vehicle_params_path, vehicle_params_path)
 
             self.get_logger().info(f"Vehicle params file processed and copied to {vehicle_params_path}")
+            self.reload_params_pub.publish(Empty())
 
         except Exception as e:
             self.get_logger().error(f"Error processing vehicle params file: {e}")
