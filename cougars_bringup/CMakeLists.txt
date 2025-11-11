@@ -32,6 +32,7 @@ install(TARGETS
 # Install Python executables
 install(PROGRAMS
   scripts/startup_call.py
+  scripts/param_reloader.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

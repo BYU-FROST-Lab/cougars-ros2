@@ -58,7 +58,7 @@ public:
         RCLCPP_INFO(this->get_logger(), "Pinging vehicle with ID: %d", target_id);
         auto request = seatrac_interfaces::msg::ModemSend();
         request.dest_id = (uint8_t)target_id;
-        request.msg_type = MSG_REQU;
+        request.msg_type = MSG_REQX;
         if (this->use_ping) {
             request.msg_id = CID_PING_SEND; // Just a ping message
         } else {
