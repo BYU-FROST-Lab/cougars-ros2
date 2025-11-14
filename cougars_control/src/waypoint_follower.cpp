@@ -74,12 +74,17 @@ public:
         system_control_sub_ = this->create_subscription<cougars_interfaces::msg::SystemControl>(
             "system/status", 1, std::bind(&WaypointFollowerNode::system_callback, this, std::placeholders::_1));
 
-
-            //TEMPORARY CHANGE FOR HOLOOCEAN TESTING
+        // Using gps_odom for position (temporary)
+        odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
+            "gps_odom", 10, std::bind(&WaypointFollowerNode::odom_callback, this, std::placeholders::_1));
+        
+        // Smoothed output (commented out for now)
         // odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
         //     "smoothed_output", 10, std::bind(&WaypointFollowerNode::odom_callback, this, std::placeholders::_1));
-        odom_sub_ = this->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
-            "/holoocean/auv0/LocationSensor", 10, std::bind(&WaypointFollowerNode::odom_callback, this, std::placeholders::_1));
+        
+        // HoloOcean simulation (commented out)
+        // holoocean_odom_sub_ = this->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
+        //     "/holoocean/auv0/LocationSensor", 10, std::bind(&WaypointFollowerNode::holoocean_odom_callback, this, std::placeholders::_1));
         
         // Subscribe to modem_imu for heading (same topic used by coug_controls)
         imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
@@ -151,16 +156,26 @@ private:
         }
     }
 
-    // Callback for odometry data (current position only)
-    // NOTE: HoloOcean LocationSensor doesn't publish orientation, only position
-    // Heading comes from IMU callback instead
-    void odom_callback(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg)
+    // Callback for odometry data (nav_msgs::Odometry - used by gps_odom and smoothed_output)
+    void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
     {
         current_x_ = msg->pose.pose.position.x;
         current_y_ = msg->pose.pose.position.y;
         
         RCLCPP_DEBUG_THROTTLE(this->get_logger(), *this->get_clock(), 2000, 
                      "Position update: (%.2f, %.2f)", current_x_, current_y_);
+    }
+
+    // Callback for HoloOcean odometry data (PoseWithCovarianceStamped)
+    // NOTE: HoloOcean LocationSensor doesn't publish orientation, only position
+    // Heading comes from IMU callback instead
+    void holoocean_odom_callback(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg)
+    {
+        current_x_ = msg->pose.pose.position.x;
+        current_y_ = msg->pose.pose.position.y;
+        
+        RCLCPP_DEBUG_THROTTLE(this->get_logger(), *this->get_clock(), 2000, 
+                     "Position update (HoloOcean): (%.2f, %.2f)", current_x_, current_y_);
     }
 
     // Callback for IMU data (current heading)
@@ -369,7 +384,8 @@ private:
     rclcpp::Publisher<cougars_interfaces::msg::DesiredHeading>::SharedPtr desired_heading_pub_;
     rclcpp::Publisher<cougars_interfaces::msg::DesiredSpeed>::SharedPtr desired_speed_pub_;
     rclcpp::Publisher<cougars_interfaces::msg::WayPoint>::SharedPtr current_waypoint_pub_;
-    rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr odom_sub_;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr holoocean_odom_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
     rclcpp::Subscription<cougars_interfaces::msg::SystemControl>::SharedPtr system_control_sub_;
     rclcpp::TimerBase::SharedPtr control_loop_timer_;
