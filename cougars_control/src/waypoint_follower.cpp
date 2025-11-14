@@ -47,15 +47,21 @@ public:
         this->declare_parameter<double>("capture_radius", 10.0); // meters
         this->declare_parameter<double>("desired_travel_speed", 20.0); // Non-dimensional
         this->declare_parameter<double>("loop_rate", 10.0); // Hz
+        this->declare_parameter<double>("waypoint_timeout", 300.0); // seconds (5 minutes default)
+        this->declare_parameter<bool>("skip_on_timeout", true); // Skip waypoint on timeout (vs abort mission)
         mission_file_path_ = this->get_parameter("mission_file_path").as_string();
         slip_radius_ = this->get_parameter("slip_radius").as_double();
         capture_radius_ = this->get_parameter("capture_radius").as_double();
         desired_travel_speed_ = this->get_parameter("desired_travel_speed").as_double();
         loop_rate_ = this->get_parameter("loop_rate").as_double();
+        waypoint_timeout_ = this->get_parameter("waypoint_timeout").as_double();
+        skip_on_timeout_ = this->get_parameter("skip_on_timeout").as_bool();
 
         RCLCPP_INFO(this->get_logger(), "Waypoint file path: %s", mission_file_path_.c_str());
         RCLCPP_INFO(this->get_logger(), "Slip radius: %.2f m | Capture radius: %.2f m", slip_radius_, capture_radius_);
         RCLCPP_INFO(this->get_logger(), "Desired travel speed: %.2f", desired_travel_speed_);
+        RCLCPP_INFO(this->get_logger(), "Waypoint timeout: %.1f s | Skip on timeout: %s", 
+                    waypoint_timeout_, skip_on_timeout_ ? "true" : "false");
 
         // Publishers
         desired_depth_pub_ = this->create_publisher<cougars_interfaces::msg::DesiredDepth>("desired_depth", 10);
@@ -96,6 +102,7 @@ public:
         current_x_ = 0.0;
         current_y_ = 0.0;
         current_heading_degrees_ = 0.0;
+        waypoint_start_time_ = this->now();
     }
 
 private:
@@ -118,6 +125,7 @@ private:
                 RCLCPP_INFO(this->get_logger(), "Received START command for 'waypoint' mission. Activating waypoint follower.");
                 mission_active_ = true;
                 current_waypoint_index_ = 0; // Reset to the first waypoint
+                waypoint_start_time_ = this->now(); // Start timer for first waypoint
                 cougars_interfaces::msg::WayPoint current_waypoint;
                 current_waypoint.waypoint_num = current_waypoint_index_ + 1; // +1 because index is 0-based and we want next WP number
                 current_waypoint.x = waypoints_[current_waypoint_index_].enu_x; // Placeholder, convert ENU to L
@@ -201,6 +209,39 @@ private:
         const auto& target_wp = waypoints_[current_waypoint_index_];
         double distance_to_target = calculate_distance(current_x_, current_y_, target_wp.enu_x, target_wp.enu_y);
 
+        // Check for waypoint timeout
+        auto current_time = this->now();
+        double elapsed_time = (current_time - waypoint_start_time_).seconds();
+        
+        if (elapsed_time > waypoint_timeout_) {
+            if (skip_on_timeout_) {
+                RCLCPP_WARN(this->get_logger(), 
+                           "⏱️ TIMEOUT! WP%d not reached after %.1fs (%.1fm away). Skipping to next waypoint.", 
+                           target_wp.id, elapsed_time, distance_to_target);
+                current_waypoint_index_++;
+                waypoint_captured_ = false;
+                waypoint_start_time_ = this->now(); // Reset timer for next waypoint
+                
+                // Publish next waypoint info if not at the end
+                if (current_waypoint_index_ < waypoints_.size()) {
+                    cougars_interfaces::msg::WayPoint current_waypoint;
+                    current_waypoint.waypoint_num = current_waypoint_index_ + 1;
+                    current_waypoint.x = waypoints_[current_waypoint_index_].enu_x;
+                    current_waypoint.y = waypoints_[current_waypoint_index_].enu_y;
+                    current_waypoint.depth = waypoints_[current_waypoint_index_].depth;
+                    current_waypoint_pub_->publish(current_waypoint);
+                }
+                return;
+            } else {
+                RCLCPP_ERROR(this->get_logger(), 
+                            "⏱️ TIMEOUT! WP%d not reached after %.1fs (%.1fm away). Aborting mission.", 
+                            target_wp.id, elapsed_time, distance_to_target);
+                mission_active_ = false;
+                publish_control_commands(current_heading_degrees_, target_wp.depth, 0.0);
+                return;
+            }
+        }
+
         // Check if waypoint is captured (within capture radius)
         if (distance_to_target < capture_radius_ && !waypoint_captured_) {
             waypoint_captured_ = true;
@@ -212,13 +253,18 @@ private:
             RCLCPP_INFO(this->get_logger(), "🎯 Reached WP%d | Next target: WP%zu", 
                        target_wp.id, current_waypoint_index_ + 2);
             current_waypoint_index_++;
-            cougars_interfaces::msg::WayPoint current_waypoint;
-            current_waypoint.waypoint_num = current_waypoint_index_ + 1; // +1 because index is 0-based and we want next WP number
-            current_waypoint.x = waypoints_[current_waypoint_index_].enu_x; // Placeholder, convert ENU to L
-            current_waypoint.y = waypoints_[current_waypoint_index_].enu_y; // Placeholder, convert ENU to L
-            current_waypoint.depth = waypoints_[current_waypoint_index_].depth;
-            current_waypoint_pub_->publish(current_waypoint);
             waypoint_captured_ = false; // Reset for next waypoint
+            waypoint_start_time_ = this->now(); // Reset timer for next waypoint
+            
+            // Publish next waypoint info if not at the end
+            if (current_waypoint_index_ < waypoints_.size()) {
+                cougars_interfaces::msg::WayPoint current_waypoint;
+                current_waypoint.waypoint_num = current_waypoint_index_ + 1; // +1 because index is 0-based and we want next WP number
+                current_waypoint.x = waypoints_[current_waypoint_index_].enu_x; // Placeholder, convert ENU to L
+                current_waypoint.y = waypoints_[current_waypoint_index_].enu_y; // Placeholder, convert ENU to L
+                current_waypoint.depth = waypoints_[current_waypoint_index_].depth;
+                current_waypoint_pub_->publish(current_waypoint);
+            }
             // Exit and wait for the next timer tick to process the new waypoint or mission completion
             return;
         }
@@ -334,6 +380,8 @@ private:
     double capture_radius_;
     double desired_travel_speed_;
     double loop_rate_;
+    double waypoint_timeout_;
+    bool skip_on_timeout_;
 
     // Mission State
     std::vector<Waypoint> waypoints_;
@@ -342,6 +390,7 @@ private:
     bool mission_loaded_;
     bool mission_active_;
     bool waypoint_captured_;
+    rclcpp::Time waypoint_start_time_; // Track when we started pursuing current waypoint
 
     // Vehicle State
     double current_x_;
