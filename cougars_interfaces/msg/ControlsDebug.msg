@@ -10,3 +10,5 @@ cougars_interfaces/ControlDebug depth
 cougars_interfaces/ControlDebug pitch
 
 cougars_interfaces/ControlDebug heading
+
+cougars_interfaces/ControlDebug roll
