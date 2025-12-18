@@ -185,49 +185,6 @@ public:
      */
     this->declare_parameter("heading_max_output", 0.0);
 
-    /**
-     * @param enable_roll_compensation
-     *
-     * Enable or disable roll compensation during turns. The default value is false.
-     */
-    this->declare_parameter("enable_roll_compensation", false);
-
-    /**
-     * @param roll_ff_gain
-     *
-     * Feed-forward gain for roll compensation. Applied as roll_correction = roll_ff_gain * heading_pos.
-     * The default value is 0.05.
-     */
-    this->declare_parameter("roll_ff_gain", 0.05);
-
-    /**
-     * @param roll_kp
-     *
-     * The proportional constant for the roll PID controller. The default value is 0.0.
-     */
-    this->declare_parameter("roll_kp", 0.0);
-
-    /**
-     * @param roll_ki
-     *
-     * The integral constant for the roll PID controller. The default value is 0.0.
-     */
-    this->declare_parameter("roll_ki", 0.0);
-
-    /**
-     * @param roll_kd
-     *
-     * The derivative constant for the roll PID controller. The default value is 0.0.
-     */
-    this->declare_parameter("roll_kd", 0.0);
-
-    /**
-     * @param roll_max_correction
-     *
-     * Maximum roll correction in degrees to protect depth control. The default value is 10.0.
-     */
-    this->declare_parameter("roll_max_correction", 10.0);
-
     this->declare_parameter("surge_threshold", -1.0);
     this->declare_parameter("wn_d_z", 0.09);
     this->declare_parameter("wn_d_theta", 0.25);
@@ -392,23 +349,12 @@ private:
                            this->get_parameter("heading_max_output").as_double(),
                            (float)this->get_parameter("timer_period").as_int());
 
-    // Initialize roll PID controller for counteracting roll induced by yaw maneuvers
-    // Min/max bounds protect depth control from excessive roll corrections
-    myRollPID.initialize(this->get_parameter("roll_kp").as_double(),
-                        this->get_parameter("roll_ki").as_double(),
-                        this->get_parameter("roll_kd").as_double(),
-                        -this->get_parameter("roll_max_correction").as_double(),
-                        this->get_parameter("roll_max_correction").as_double(),
-                        (float)this->get_parameter("timer_period").as_int());
-
     std::cout << "Depth Controller Values -";
     myDepthPID.print_values();
     std::cout << "Pitch Controller Values -";
     myPitchPID.print_values();
     std::cout << "Heading Controller Values -";
     myHeadingPID.print_values();
-    std::cout << "Roll Controller Values -";
-    myRollPID.print_values();
 
   }
   
@@ -703,51 +649,6 @@ private:
   }
 
   /**
-   * @brief Compute roll compensation to counteract roll during turns.
-   *
-   * When the vehicle turns using the top fin, hydrodynamic forces induce roll.
-   * This function calculates a correction to apply to the side fins to counteract that roll.
-   *
-   * Hybrid approach combines:
-   * - Feed-forward: Anticipates roll based on yaw command (immediate response)
-   * - Feedback PID: Corrects residual roll error (fine-tunes based on actual roll)
-   *
-   * The correction is applied differentially:
-   * - Right fin: subtracts correction
-   * - Left fin: adds correction
-   * This creates a roll moment opposing the turn-induced roll.
-   *
-   * @param heading_pos The commanded heading fin position (top fin, in degrees)
-   * @return Roll correction value (degrees) to be applied differentially to side fins
-   */
-  float compute_roll_compensation(int heading_pos) {
-    // Master enable/disable switch - allows easy testing comparison
-    if (!this->get_parameter("enable_roll_compensation").as_bool()) {
-      return 0.0f;
-    }
-
-    // Feed-forward: predict roll based on yaw command
-    // Larger yaw commands → larger expected roll → larger correction needed
-    float roll_ff_gain = this->get_parameter("roll_ff_gain").as_double();
-    float feed_forward = roll_ff_gain * heading_pos;
-
-    // Feedback: correct any remaining roll error using PID
-    // Target roll is always 0 degrees (level flight)
-    float feedback = myRollPID.compute(0.0f, this->actual_roll);
-
-    // Combine and negate (we want to oppose the induced roll, not amplify it)
-    // If turning right causes right roll, we apply left correction, and vice versa
-    float roll_correction = -(feed_forward + feedback);
-
-    // Safety limit: prevent roll compensation from overwhelming depth control
-    // Depth control has priority per system requirements
-    float max_correction = this->get_parameter("roll_max_correction").as_double();
-    roll_correction = std::fmax(-max_correction, std::fmin(max_correction, roll_correction));
-
-    return roll_correction;
-  }
-
-  /**
    * @brief Callback function for the PID control timer.
    *
    * This method computes the control commands using the PID controllers and
@@ -777,24 +678,10 @@ private:
           
         int heading_pos = (int)myHeadingPID.compute(0.0, yaw_err);
 
-        // === ROLL COMPENSATION ===
-        // Calculate correction to counteract roll induced by turning
-        // Returns 0 if disabled, otherwise returns hybrid feed-forward + feedback correction
-        float roll_correction = compute_roll_compensation(heading_pos);
+        message.fin[0] = heading_pos;    // top fin (yaw control only)
+        message.fin[1] = -depth_pos;     // right/starboard fin (pitch only)
+        message.fin[2] = depth_pos;      // left/port fin (pitch only)
 
-        // === FIN ASSIGNMENT ===
-        // Assign control outputs to physical fins
-        // fin[0] = top fin:    Controls yaw (heading)
-        // fin[1] = right fin:  Controls pitch (depth) AND roll (differential with left fin)
-        // fin[2] = left fin:   Controls pitch (depth) AND roll (differential with right fin)
-        //
-        // Roll compensation works by making side fins asymmetric:
-        // - When turning right (positive heading_pos), vehicle rolls right
-        // - To counteract: right fin goes up more (+), left fin goes down more (-)
-        // - This creates a left-roll moment to oppose the right-roll from turning
-        message.fin[0] = heading_pos;                  // top fin (yaw control only)
-        message.fin[1] = -depth_pos - roll_correction; // right/starboard fin (pitch - roll)
-        message.fin[2] = depth_pos + roll_correction;  // left/port fin (pitch + roll)
         message.thruster = this->desired_speed;
     
         u_command_publisher_->publish(message);
@@ -831,17 +718,6 @@ private:
         message.heading.i = myHeadingPID.getI();
         message.heading.d = myHeadingPID.getD();
         message.heading.pid = myHeadingPID.getPID();
-
-        // Roll debug data for tuning and monitoring
-        // View in PlotJuggler to tune feed-forward and PID gains
-        message.roll.actual = this->actual_roll;                // Current roll angle from IMU
-        message.roll.rate = 0.0f;                               // Roll rate not currently used
-        message.roll.desired = 0.0f;                            // Target is always level (0 degrees)
-        message.roll.reference = roll_correction;               // Total correction being applied
-        message.roll.p = myRollPID.getP();                      // Proportional component
-        message.roll.i = myRollPID.getI();                      // Integral component
-        message.roll.d = myRollPID.getD();                      // Derivative component
-        message.roll.pid = myRollPID.getPID();                  // Total PID output (feedback only)
     
         debug_controls_pub_->publish(message);
 
@@ -887,7 +763,6 @@ private:
   PID myHeadingPID;  // Yaw/heading control
   PID myDepthPID;    // Depth control (outer loop)
   PID myPitchPID;    // Pitch control (inner loop)
-  PID myRollPID;     // Roll compensation (counteracts turn-induced roll)
 
   // node desired values
   float desired_depth = 0.0;
