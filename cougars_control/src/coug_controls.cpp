@@ -31,6 +31,121 @@ auto qos = rclcpp::QoS(
     qos_profile);
 
 /**
+ * @brief Roll-aware actuator mixer for 3-fin inverted-Y configuration.
+ *
+ * This class implements coordinate-transform-based mixing that accounts for
+ * roll-induced coupling between yaw, pitch, and roll control axes.
+ *
+ * When the vehicle is rolled, the effectiveness of each fin changes:
+ * - Top fin: yaw effectiveness reduced by cos(φ), gains pitch coupling sin(φ)
+ * - Side fins: pitch effectiveness changes, gain yaw authority when rolled
+ *
+ * The mixer compensates for these effects to maintain decoupled control.
+ */
+class ActuatorMixer {
+public:
+    /**
+     * @brief Output structure for fin commands.
+     */
+    struct FinCommands {
+        float fin0;  // Top fin (primarily yaw)
+        float fin1;  // Right/starboard fin (pitch + roll)
+        float fin2;  // Left/port fin (pitch + roll)
+    };
+
+    /**
+     * @brief Construct mixer with fin geometry.
+     * @param side_fin_angle_deg Angle of side fins from vertical (default 30°)
+     */
+    ActuatorMixer(float side_fin_angle_deg = 30.0f) {
+        side_fin_angle_rad_ = side_fin_angle_deg * M_PI / 180.0f;
+        sin_side_angle_ = std::sin(side_fin_angle_rad_);  // 0.5 for 30°
+        cos_side_angle_ = std::cos(side_fin_angle_rad_);  // 0.866 for 30°
+    }
+
+    /**
+     * @brief Mix virtual torque commands to physical fin commands.
+     *
+     * Applies roll-dependent coordinate transform to account for coupling.
+     *
+     * @param tau_yaw     Yaw torque demand (from heading PID)
+     * @param tau_pitch   Pitch torque demand (from depth/pitch cascade)
+     * @param tau_roll    Roll torque demand (from roll compensation)
+     * @param roll_deg    Current vehicle roll angle in degrees
+     * @param enable_transform If false, uses simple decoupled mixing
+     * @return FinCommands structure with fin[0], fin[1], fin[2] values
+     */
+    FinCommands mix(float tau_yaw, float tau_pitch, float tau_roll,
+                    float roll_deg, bool enable_transform = true) {
+        FinCommands cmd;
+
+        if (!enable_transform) {
+            // Legacy mode: simple decoupled mixing (no roll awareness)
+            cmd.fin0 = tau_yaw;
+            cmd.fin1 = -tau_pitch - tau_roll;
+            cmd.fin2 = tau_pitch + tau_roll;
+            return cmd;
+        }
+
+        // Convert roll to radians
+        float phi_rad = roll_deg * M_PI / 180.0f;
+        float cos_phi = std::cos(phi_rad);
+        float sin_phi = std::sin(phi_rad);
+
+        // === TOP FIN ===
+        // When rolled, top fin is only cos(φ) effective at yaw
+        // It also creates unwanted pitch proportional to sin(φ)
+        cmd.fin0 = tau_yaw * cos_phi;
+
+        // === PITCH LEAK COMPENSATION ===
+        // Top fin's pitch coupling when rolled: τ_yaw * sin(φ)
+        // Side fins must cancel this "leaked" pitch
+        float pitch_leak = tau_yaw * sin_phi;
+        float effective_pitch = tau_pitch - pitch_leak;
+
+        // === SIDE FIN YAW ASSIST ===
+        // Since top fin is less effective, side fins help with yaw
+        // Their yaw contribution = sin(side_angle) * sin(φ) * τ_yaw
+        // For 30° side fins: sin(30°) = 0.5
+        float yaw_assist = sin_side_angle_ * tau_yaw * sin_phi;
+
+        // === SIDE FINS ===
+        // Pitch effectiveness also reduced by cos(φ) when rolled
+        // fin[1] (right): negative pitch, negative roll, plus yaw assist
+        // fin[2] (left):  positive pitch, positive roll, plus yaw assist
+        cmd.fin1 = -effective_pitch * cos_phi - tau_roll + yaw_assist;
+        cmd.fin2 = effective_pitch * cos_phi + tau_roll + yaw_assist;
+
+        return cmd;
+    }
+
+    /**
+     * @brief Get diagnostic info about the mixing state.
+     */
+    struct MixerDebug {
+        float cos_phi;
+        float sin_phi;
+        float pitch_leak;
+        float yaw_assist;
+    };
+
+    MixerDebug getLastDebug(float tau_yaw, float roll_deg) {
+        float phi_rad = roll_deg * M_PI / 180.0f;
+        MixerDebug dbg;
+        dbg.cos_phi = std::cos(phi_rad);
+        dbg.sin_phi = std::sin(phi_rad);
+        dbg.pitch_leak = tau_yaw * dbg.sin_phi;
+        dbg.yaw_assist = sin_side_angle_ * tau_yaw * dbg.sin_phi;
+        return dbg;
+    }
+
+private:
+    float side_fin_angle_rad_;
+    float sin_side_angle_;  // sin(30°) = 0.5
+    float cos_side_angle_;  // cos(30°) = 0.866
+};
+
+/**
  *
  * This node subscribes to desired depth, heading, and speed topics and actual
  * depth and heading topics. It then computes the control commands using various
@@ -227,6 +342,23 @@ public:
      * Maximum roll correction in degrees to protect depth control. The default value is 10.0.
      */
     this->declare_parameter("roll_max_correction", 10.0);
+
+    /**
+     * @param enable_coordinate_transform
+     *
+     * Enable roll-aware coordinate transform mixing. When true, the mixer accounts
+     * for roll-induced coupling between yaw/pitch/roll axes. When false, uses simple
+     * decoupled mixing (legacy behavior). Default is false for backward compatibility.
+     */
+    this->declare_parameter("enable_coordinate_transform", false);
+
+    /**
+     * @param side_fin_angle
+     *
+     * Angle of side fins from vertical in degrees. Used by the coordinate transform
+     * mixer to calculate coupling coefficients. Default is 30.0 degrees.
+     */
+    this->declare_parameter("side_fin_angle", 30.0);
 
     this->declare_parameter("surge_threshold", -1.0);
     this->declare_parameter("wn_d_z", 0.09);
@@ -731,6 +863,15 @@ private:
     float roll_ff_gain = this->get_parameter("roll_ff_gain").as_double();
     float feed_forward = roll_ff_gain * heading_pos;
 
+    // If coordinate transform is enabled, scale feed-forward by cos(φ)
+    // Rationale: When already rolled, side fins are less effective at creating
+    // roll moments (some of their force goes to yaw). The feed-forward needs
+    // to account for this reduced effectiveness.
+    if (this->get_parameter("enable_coordinate_transform").as_bool()) {
+      float cos_phi = std::cos(this->actual_roll * M_PI / 180.0f);
+      feed_forward *= cos_phi;
+    }
+
     // Feedback: correct any remaining roll error using PID
     // Target roll is always 0 degrees (level flight)
     float feedback = myRollPID.compute(0.0f, this->actual_roll);
@@ -782,19 +923,25 @@ private:
         // Returns 0 if disabled, otherwise returns hybrid feed-forward + feedback correction
         float roll_correction = compute_roll_compensation(heading_pos);
 
-        // === FIN ASSIGNMENT ===
-        // Assign control outputs to physical fins
-        // fin[0] = top fin:    Controls yaw (heading)
-        // fin[1] = right fin:  Controls pitch (depth) AND roll (differential with left fin)
-        // fin[2] = left fin:   Controls pitch (depth) AND roll (differential with right fin)
-        //
-        // Roll compensation works by making side fins asymmetric:
-        // - When turning right (positive heading_pos), vehicle rolls right
-        // - To counteract: right fin goes up more (+), left fin goes down more (-)
-        // - This creates a left-roll moment to oppose the right-roll from turning
-        message.fin[0] = heading_pos;                  // top fin (yaw control only)
-        message.fin[1] = -depth_pos - roll_correction; // right/starboard fin (pitch - roll)
-        message.fin[2] = depth_pos + roll_correction;  // left/port fin (pitch + roll)
+        // === ACTUATOR MIXING ===
+        // Use roll-aware mixer if coordinate transform is enabled
+        // Otherwise falls back to simple decoupled mixing (legacy behavior)
+        bool use_transform = this->get_parameter("enable_coordinate_transform").as_bool();
+        auto fin_cmd = actuator_mixer_.mix(
+            (float)heading_pos,   // τ_yaw: heading PID output
+            (float)depth_pos,     // τ_pitch: pitch PID output  
+            roll_correction,      // τ_roll: roll compensation
+            this->actual_roll,    // φ: current roll angle
+            use_transform         // Enable/disable transform
+        );
+
+        // Assign mixed fin commands
+        // fin[0] = top fin:    Primarily yaw, with roll-dependent pitch coupling
+        // fin[1] = right fin:  Pitch + roll + yaw assist when rolled
+        // fin[2] = left fin:   Pitch + roll + yaw assist when rolled
+        message.fin[0] = (int)fin_cmd.fin0;
+        message.fin[1] = (int)fin_cmd.fin1;
+        message.fin[2] = (int)fin_cmd.fin2;
         message.thruster = this->desired_speed;
     
         u_command_publisher_->publish(message);
@@ -888,6 +1035,7 @@ private:
   PID myDepthPID;    // Depth control (outer loop)
   PID myPitchPID;    // Pitch control (inner loop)
   PID myRollPID;     // Roll compensation (counteracts turn-induced roll)
+  ActuatorMixer actuator_mixer_;  // Roll-aware fin mixer
 
   // node desired values
   float desired_depth = 0.0;
