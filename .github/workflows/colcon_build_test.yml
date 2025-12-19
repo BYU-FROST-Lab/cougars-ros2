@@ -1,0 +1,34 @@
+name: Docker ROS2 Build
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    container:
+      image: frostlab/cougars:vehicle
+      options: --user root
+
+    steps:
+      - name: Checkout your repo into ros2_ws/src
+        uses: actions/checkout@v4
+        with:
+          path: ros2_ws/src/your_package  # optional: customize subfolder name
+
+      - name: Clone dependencies into workspace
+        run: |
+          cd ros2_ws/src
+          git clone https://github.com/BYU-FRoSt-Lab/seatrac-ros2.git
+          git clone https://github.com/paagutie/dvl_msgs.git
+
+      - name: Build with colcon
+        working-directory: ros2_ws
+        shell: bash  # 👈 force bash instead of sh
+        run: |
+          source /opt/ros/humble/setup.bash
+          colcon build --event-handlers console_cohesion+
