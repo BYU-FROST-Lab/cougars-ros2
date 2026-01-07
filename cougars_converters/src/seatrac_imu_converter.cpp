@@ -1,5 +1,6 @@
 
 #include <cmath>
+#include <chrono>
 #include <seatrac_interfaces/msg/modem_status.hpp>
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -22,6 +23,7 @@
 #define ACC_UNITS_TO_METERS_PER_SECOND_SQUARED 9.80665 / 250.0
 
 using std::string;
+using namespace std::chrono_literals;
 
 /**
  * @brief publishes an imu message using data from the seatrac modem
@@ -34,7 +36,7 @@ using std::string;
  * Subscribes:
  * - modem_status (seatrac_interfaces/msg/ModemStatus)
  * Publishes:
- * - modem_imu (sensor_msgs::msg::Imu)
+ * - seatrac/imu/data (sensor_msgs::msg::Imu)
  * - /tf <"ned"->"modem"> (geometry_msgs/msg/TransformStamped)
  * - imu_accel_marker (visualization_msgs/msg/Marker)
  * - imu_ang_vel_marker (visualization_msgs/msg/Marker)
@@ -72,7 +74,7 @@ public:
                       std::placeholders::_1));
 
     modem_imu_pub_ =
-        this->create_publisher<sensor_msgs::msg::Imu>("modem_imu", 10);
+        this->create_publisher<sensor_msgs::msg::Imu>("seatrac/imu/data", 10);
 
     // Initialize the transform broadcaster
     tf_broadcaster_ =
@@ -192,7 +194,9 @@ private:
       }
 
     } catch(const tf2::TransformException &ex) {
-      RCLCPP_WARN(this->get_logger(), "Transform not available, Waiting for Transform: %s", ex.what());
+      RCLCPP_WARN_THROTTLE(this->get_logger(), 
+                           *this->get_clock(), 5s,
+                           "Transform not available, Waiting for Transform: %s", ex.what());
     }
 
   }

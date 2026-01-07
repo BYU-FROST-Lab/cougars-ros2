@@ -35,9 +35,9 @@ ament_target_dependencies(depth_converter rclcpp std_msgs std_srvs cougars_inter
 add_executable(dvl_converter src/dvl_converter.cpp)
 ament_target_dependencies(dvl_converter rclcpp std_msgs cougars_interfaces geometry_msgs dvl_msgs)
 
-add_executable(seatrac_ahrs_converter src/seatrac_ahrs_converter.cpp)
+add_executable(seatrac_imu_converter src/seatrac_imu_converter.cpp)
 ament_target_dependencies(
-  seatrac_ahrs_converter 
+  seatrac_imu_converter 
   rclcpp 
   std_msgs 
   seatrac_interfaces
@@ -57,14 +57,14 @@ ament_target_dependencies(static_tf_publisher rclcpp std_msgs geometry_msgs tf2_
 # Link libraries
 target_link_libraries(depth_converter)
 target_link_libraries(dvl_converter)
-target_link_libraries(seatrac_ahrs_converter)
+target_link_libraries(seatrac_imu_converter)
 target_link_libraries(dvl_global)
 
 # Install executables
 install(TARGETS
   depth_converter
   dvl_converter
-  seatrac_ahrs_converter
+  seatrac_imu_converter
   dvl_global
   static_tf_publisher
   DESTINATION lib/${PROJECT_NAME})
