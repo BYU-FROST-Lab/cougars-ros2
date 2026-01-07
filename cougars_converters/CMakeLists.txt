@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(cougars_localization)
+project(cougars_bridge)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -29,15 +29,15 @@ find_package(visualization_msgs REQUIRED)
 
 include_directories(include/${PROJECT_NAME})
 
-add_executable(depth_convertor src/depth_convertor.cpp)
-ament_target_dependencies(depth_convertor rclcpp std_msgs std_srvs cougars_interfaces geometry_msgs sensor_msgs)
+add_executable(depth_converter src/depth_converter.cpp)
+ament_target_dependencies(depth_converter rclcpp std_msgs std_srvs cougars_interfaces geometry_msgs sensor_msgs)
 
-add_executable(dvl_convertor src/dvl_convertor.cpp)
-ament_target_dependencies(dvl_convertor rclcpp std_msgs cougars_interfaces geometry_msgs dvl_msgs)
+add_executable(dvl_converter src/dvl_converter.cpp)
+ament_target_dependencies(dvl_converter rclcpp std_msgs cougars_interfaces geometry_msgs dvl_msgs)
 
-add_executable(seatrac_ahrs_convertor src/seatrac_ahrs_convertor.cpp)
+add_executable(seatrac_ahrs_converter src/seatrac_ahrs_converter.cpp)
 ament_target_dependencies(
-  seatrac_ahrs_convertor 
+  seatrac_ahrs_converter 
   rclcpp 
   std_msgs 
   seatrac_interfaces
@@ -55,16 +55,16 @@ add_executable(static_tf_publisher src/static_tf_publisher.cpp)
 ament_target_dependencies(static_tf_publisher rclcpp std_msgs geometry_msgs tf2_ros tf2_geometry_msgs)
 
 # Link libraries
-target_link_libraries(depth_convertor)
-target_link_libraries(dvl_convertor)
-target_link_libraries(seatrac_ahrs_convertor)
+target_link_libraries(depth_converter)
+target_link_libraries(dvl_converter)
+target_link_libraries(seatrac_ahrs_converter)
 target_link_libraries(dvl_global)
 
 # Install executables
 install(TARGETS
-  depth_convertor
-  dvl_convertor
-  seatrac_ahrs_convertor
+  depth_converter
+  dvl_converter
+  seatrac_ahrs_converter
   dvl_global
   static_tf_publisher
   DESTINATION lib/${PROJECT_NAME})
