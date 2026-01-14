@@ -49,6 +49,7 @@ public:
         this->declare_parameter<double>("loop_rate", 10.0); // Hz
         this->declare_parameter<double>("waypoint_timeout", 300.0); // seconds (5 minutes default)
         this->declare_parameter<bool>("skip_on_timeout", true); // Skip waypoint on timeout (vs abort mission)
+        this->declare_parameter<bool>("use_gps_passthrough", false); // GPS-only cart test mode (depth=0, speed=0, fins active)
         mission_file_path_ = this->get_parameter("mission_file_path").as_string();
         slip_radius_ = this->get_parameter("slip_radius").as_double();
         capture_radius_ = this->get_parameter("capture_radius").as_double();
@@ -56,12 +57,24 @@ public:
         loop_rate_ = this->get_parameter("loop_rate").as_double();
         waypoint_timeout_ = this->get_parameter("waypoint_timeout").as_double();
         skip_on_timeout_ = this->get_parameter("skip_on_timeout").as_bool();
+        use_gps_passthrough_ = this->get_parameter("use_gps_passthrough").as_bool();
 
         RCLCPP_INFO(this->get_logger(), "Waypoint file path: %s", mission_file_path_.c_str());
         RCLCPP_INFO(this->get_logger(), "Slip radius: %.2f m | Capture radius: %.2f m", slip_radius_, capture_radius_);
         RCLCPP_INFO(this->get_logger(), "Desired travel speed: %.2f", desired_travel_speed_);
         RCLCPP_INFO(this->get_logger(), "Waypoint timeout: %.1f s | Skip on timeout: %s", 
                     waypoint_timeout_, skip_on_timeout_ ? "true" : "false");
+        
+        // Prominent GPS passthrough mode indicator
+        if (use_gps_passthrough_) {
+            RCLCPP_WARN(this->get_logger(), "═══════════════════════════════════════════════════════");
+            RCLCPP_WARN(this->get_logger(), "🚗 GPS PASSTHROUGH MODE ENABLED (CART TEST MODE)");
+            RCLCPP_WARN(this->get_logger(), "   ➤ Depth control: DISABLED (hardcoded to 0.0m)");
+            RCLCPP_WARN(this->get_logger(), "   ➤ Thruster: DISABLED (speed hardcoded to 0.0)");
+            RCLCPP_WARN(this->get_logger(), "   ➤ Fin control: ACTIVE (heading PID operational)");
+            RCLCPP_WARN(this->get_logger(), "   ➤ Position source: GPS only (gps_odom topic)");
+            RCLCPP_WARN(this->get_logger(), "═══════════════════════════════════════════════════════");
+        }
 
         // Publishers
         desired_depth_pub_ = this->create_publisher<cougars_interfaces::msg::DesiredDepth>("desired_depth", 10);
@@ -303,6 +316,18 @@ private:
     // Publish control commands
     void publish_control_commands(double heading_deg, double depth, double speed)
     {
+        // GPS passthrough mode overrides for cart testing
+        if (use_gps_passthrough_) {
+            if (depth != 0.0) {
+                RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 10000,
+                                    "🚗 GPS PASSTHROUGH: Ignoring waypoint depth %.2fm (using 0.0m)", depth);
+            }
+            depth = 0.0;  // Hardcode depth to 0 (surface/land level)
+            speed = 0.0;  // Hardcode speed to 0 (disable thruster)
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+                                "🚗 GPS PASSTHROUGH: Depth=0.0m, Speed=0.0, Heading=%.1f° (fins active)", heading_deg);
+        }
+        
         auto depth_msg = cougars_interfaces::msg::DesiredDepth();
         depth_msg.desired_depth = static_cast<float>(depth);
         desired_depth_pub_->publish(depth_msg);
@@ -398,6 +423,7 @@ private:
     double loop_rate_;
     double waypoint_timeout_;
     bool skip_on_timeout_;
+    bool use_gps_passthrough_; // GPS-only cart test mode flag
 
     // Mission State
     std::vector<Waypoint> waypoints_;

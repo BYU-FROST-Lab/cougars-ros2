@@ -85,24 +85,27 @@ def generate_launch_description():
     )
     launch_actions.append(converters_launch)
 
-    # --- Define the Waypoint Follower Node (conditionally) ---
-    waypoint_node_to_launch: Node 
-
+    # --- Define the Waypoint Follower Node ---
+    # GPS flag enables GPS passthrough mode for cart testing (depth=0, speed=0, fins active)
     if GPS == "true":
-        print("[INFO] [launch] USING GPS FLAG: Launching waypoint_follower_gps")
+        print("[INFO] [launch] 🚗 GPS FLAG ENABLED: Activating GPS passthrough mode (cart test mode)")
+        print("[INFO] [launch]    ➤ Depth: DISABLED (0.0m)")
+        print("[INFO] [launch]    ➤ Thruster: DISABLED (0.0 speed)")
+        print("[INFO] [launch]    ➤ Fins: ACTIVE (heading control enabled)")
         waypoint_node_to_launch = Node(
             package='cougars_control',
-            executable='waypoint_follower_gps',
-            name='waypoint_follower_gps_node',
+            executable='waypoint_follower',
+            name='waypoint_follower_node',
             namespace=namespace,
             output='screen',
             parameters=[
                 param_file,
-                fleet_param
+                fleet_param,
+                {'use_gps_passthrough': True}  # Override parameter for GPS cart test mode
             ]
         )
     else:
-        print("[INFO] [launch] NOT USING GPS FLAG: Launching waypoint_follower")
+        print("[INFO] [launch] Standard waypoint mode: Full control (depth, heading, speed)")
         waypoint_node_to_launch = Node(
             package='cougars_control',
             executable='waypoint_follower',
