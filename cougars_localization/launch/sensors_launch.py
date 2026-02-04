@@ -5,6 +5,7 @@ import launch_ros.actions
 import launch_ros.descriptions
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
+from launch.substitutions import EnvironmentVariable
 
 import yaml
 
@@ -18,7 +19,6 @@ def generate_launch_description():
     GPS = "False"  # Default to 'False'
     verbose = "False"
     namespace=''
-    BLUEROV = "False"
  
     # Declare launch arguments
     namespace_launch_arg = DeclareLaunchArgument(
@@ -53,25 +53,27 @@ def generate_launch_description():
     )
     launch_actions.append(dvl)
 
-    # TODO if BLUEROV is false
     # Serial Teensy connection
     launch_actions.append(
         launch_ros.actions.Node(
         package='cougars_control', 
         executable='mc_serial_node', 
         namespace=LaunchConfiguration('namespace'),
+        parameters=[{
+        'UCONTROLLER': EnvironmentVariable('UCONTROLLER'),
+        'UCONTROLLER_SERIAL': EnvironmentVariable('UCONTROLLER_SERIAL')
+        }],
         output='log',
     ))
-    # TODO if BLUEROV is true
-    # TODO DEFINETLY NEED TO FIX THIS
-    # Pressure sensor for blueROV
-    # launch_actions.append(launch_ros.actions.Node(
-    #     package='pressure_sensor',
-    #     executable='get_pressure',
-    #     parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
-    #     namespace=LaunchConfiguration('namespace'),
-    #     output='log',
-    # ))
+    # Pressure sensor over i2c for mainboard based solutions
+    if(EnvironmentVariable('UCONTROLLER')=="STM"):
+        launch_actions.append(launch_ros.actions.Node(
+            package='pressure_sensor',
+            executable='pressure_pub',
+            parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
+            namespace=LaunchConfiguration('namespace'),
+            output='log',
+        ))
 
 
     launch_actions.extend([

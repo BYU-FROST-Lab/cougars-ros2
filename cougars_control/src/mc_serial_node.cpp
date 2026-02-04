@@ -9,7 +9,8 @@
 // Added these libraries for the real path resolution
 #include <stdlib.h>
 #include <limits.h>
-
+//todo: recognize which microcontroller is being used, possibly through bash variable $UCONTROLLER???
+//ucontroller env var sourced in launch file
 class ControlNode : public rclcpp::Node {
 public:
     ControlNode() : Node("mc_serial_node") {
@@ -18,16 +19,19 @@ public:
         control_command_sub_ = this->create_subscription<cougars_interfaces::msg::UCommand>(
             "kinematics/command", 10, std::bind(&ControlNode::controlCommandCallback, this, std::placeholders::_1));
 
-        // Initialize publisher
-        pressure_pub_ = this->create_publisher<sensor_msgs::msg::FluidPressure>("pressure/data", 10);
+
 
         battery_pub_ = this->create_publisher<sensor_msgs::msg::BatteryState>("battery/data", 10);
 
         leak_pub_ = this->create_publisher<sensor_msgs::msg::FluidPressure>("leak/data", 10);
+        
 
+
+        
         this->declare_parameter("demo_mode", false);
-
-        sp_set_baudrate(serial_port_, 9600);
+        this->declare_parameter("UCONTROLLER", "TEENSY");
+        this->declare_parameter("UCONTROLLER_SERIAL", "/dev/frost/teensy");
+        sp_set_baudrate(serial_port_, 115200);
         // Open the serial port
 
 
@@ -35,8 +39,8 @@ public:
         //This function finds the real path within the udev rule so that it can use the real path with the libserialport library
         //libserial port library cannot use udev paths
         char resolved_path[PATH_MAX];
-        if (realpath("/dev/frost/teensy", resolved_path) != NULL) {
-            std::cout << "Real path: " << resolved_path << std::endl;
+        if (realpath(this->get_parameter("UCONTROLLER_SERIAL").as_string, resolved_path) != NULL) {
+                std::cout << "Real path: " << resolved_path << std::endl;
         } else {
             std::cerr << "Error resolving path" << std::endl;
         }
@@ -51,6 +55,36 @@ public:
             sp_free_port(serial_port_);
             rclcpp::shutdown();
         }
+
+        if(this->get_parameter("UCONTROLLER")=="STM"){
+            //config UART
+            sp_set_baudrate(serial_port_, 115200);
+            sp_set_bits(serial_port_, 8);
+            sp_set_parity(serial_port_, SP_PARITY_EVEN);
+            sp_set_stopbits(serial_port_, 1);
+            sp_set_flowcontrol(serial_port_, SP_FLOWCONTROL_NONE);
+
+            dvl_sw_service_ = this->create_service<std_srvs::srv::SetBool>(
+            "dvl_modem_enable",
+            [this](const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
+                    std::shared_ptr<std_srvs::srv::SetBool::Response> response)
+            {
+                response->success = true;
+                std::stringstream ss;
+                // (Currently have 3 fins)
+                ss << "$CONTR2," << request->data << "," << 5 <<"\n"; //no output to the led blink, can be implemented in the future
+                std::string command = ss.str();
+                sp_nonblocking_write(serial_port_, command.c_str(), command.size());
+                response->message = "message sent";
+            }
+            );
+
+        } else{
+            // Initialize pressure publisher
+            pressure_pub_ = this->create_publisher<sensor_msgs::msg::FluidPressure>("pressure/data", 10);
+            
+        }
+
 
 
         RCLCPP_INFO(this->get_logger(), "Serial port initialized");
@@ -175,6 +209,7 @@ private:
     rclcpp::Publisher<sensor_msgs::msg::FluidPressure>::SharedPtr pressure_pub_;
     rclcpp::Publisher<sensor_msgs::msg::FluidPressure>::SharedPtr leak_pub_;
     rclcpp::Publisher<sensor_msgs::msg::BatteryState>::SharedPtr battery_pub_;
+    rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr dvl_sw_service_;
     rclcpp::TimerBase::SharedPtr timer_;
     struct sp_port *serial_port_;
 };

@@ -79,7 +79,7 @@ ament_target_dependencies(waypoint_follower_gps
 )
 
 add_executable(mc_serial_node src/mc_serial_node.cpp)
-ament_target_dependencies(mc_serial_node rclcpp std_msgs cougars_interfaces sensor_msgs)
+ament_target_dependencies(mc_serial_node rclcpp std_srvs std_msgs cougars_interfaces sensor_msgs)
 
 # Link libraries
 target_link_libraries(mc_serial_node

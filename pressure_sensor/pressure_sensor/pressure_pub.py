@@ -46,8 +46,8 @@ def main():
     node = None
     node2 = None
     try:
-        node = PressurePublisher(0, 'pressure_publisher_02ba', 1, "shallow_pressure")
-        node2 = PressurePublisher(1, 'pressure_publisher_30ba', 0, "deep_pressure")
+        node = PressurePublisher(0, 'pressure_publisher_02ba', 3, "shallow_pressure")
+        node2 = PressurePublisher(1, 'pressure_publisher_30ba', 3, "deep_pressure")
         if node is None or node2 is None:
             rclpy.shutdown()
             return
