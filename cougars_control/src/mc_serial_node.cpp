@@ -39,7 +39,7 @@ public:
         //This function finds the real path within the udev rule so that it can use the real path with the libserialport library
         //libserial port library cannot use udev paths
         char resolved_path[PATH_MAX];
-        if (realpath(this->get_parameter("UCONTROLLER_SERIAL").as_string, resolved_path) != NULL) {
+        if (realpath(this->get_parameter("UCONTROLLER_SERIAL").as_string(), resolved_path) != NULL) {
                 std::cout << "Real path: " << resolved_path << std::endl;
         } else {
             std::cerr << "Error resolving path" << std::endl;
@@ -56,7 +56,7 @@ public:
             rclcpp::shutdown();
         }
 
-        if(this->get_parameter("UCONTROLLER")=="STM"){
+        if(this->get_parameter("UCONTROLLER").as_string()=="STM"){
             //config UART
             sp_set_baudrate(serial_port_, 115200);
             sp_set_bits(serial_port_, 8);
@@ -65,19 +65,7 @@ public:
             sp_set_flowcontrol(serial_port_, SP_FLOWCONTROL_NONE);
 
             dvl_sw_service_ = this->create_service<std_srvs::srv::SetBool>(
-            "dvl_modem_enable",
-            [this](const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
-                    std::shared_ptr<std_srvs::srv::SetBool::Response> response)
-            {
-                response->success = true;
-                std::stringstream ss;
-                // (Currently have 3 fins)
-                ss << "$CONTR2," << request->data << "," << 5 <<"\n"; //no output to the led blink, can be implemented in the future
-                std::string command = ss.str();
-                sp_nonblocking_write(serial_port_, command.c_str(), command.size());
-                response->message = "message sent";
-            }
-            );
+            "dvl_modem_enable", std::bind(&ControlNode::dvlServiceCallback, this, std::placeholders::_1));
 
         } else{
             // Initialize pressure publisher
@@ -108,7 +96,16 @@ private:
         // RCLCPP_INFO(this->get_logger(), "Sent command: %s", command.c_str());
         std::cout << "Sent command: " << command.c_str() << std::endl;
     }
+    void dvlServiceCallback(const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
+                    std::shared_ptr<std_srvs::srv::SetBool::Response> response){
+        response->success = true;
+        std::stringstream ss;
+        ss << "$CONTR2," << request->data << ",5\n"; //no output to the led blink, can be implemented in the future
+        std::string command = ss.str();
+        sp_nonblocking_write(serial_port_, command.c_str(), command.size());
+        response->message = "message sent";
 
+    }
     void readSerialData() {
         char temp_buffer[1024];
         int bytes_read = sp_nonblocking_read(serial_port_, temp_buffer, sizeof(temp_buffer) - 1);
