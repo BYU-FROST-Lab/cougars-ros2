@@ -40,7 +40,7 @@ public:
         //This function finds the real path within the udev rule so that it can use the real path with the libserialport library
         //libserial port library cannot use udev paths
         char resolved_path[PATH_MAX];
-        if (realpath(this->get_parameter("UCONTROLLER_SERIAL").as_string().c_str, resolved_path) != NULL) {
+        if (realpath(this->get_parameter("UCONTROLLER_SERIAL").as_string().c_str(), resolved_path) != NULL) {
                 std::cout << "Real path: " << resolved_path << std::endl;
         } else {
             std::cerr << "Error resolving path" << std::endl;
@@ -57,7 +57,7 @@ public:
             rclcpp::shutdown();
         }
 
-        if(this->get_parameter("UCONTROLLER").as_string_array().c_str=="STM"){
+        if(this->get_parameter("UCONTROLLER").as_string().c_str()=="STM"){
             //config UART
             sp_set_baudrate(serial_port_, 115200);
             sp_set_bits(serial_port_, 8);
