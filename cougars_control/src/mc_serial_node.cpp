@@ -4,6 +4,7 @@
 #include <sensor_msgs/msg/battery_state.hpp>
 #include "cougars_interfaces/msg/u_command.hpp"
 #include <libserialport.h>
+#include <std_srvs/srv/set_bool.hpp>
 #include <string>
 #include <sstream>
 // Added these libraries for the real path resolution
@@ -39,7 +40,7 @@ public:
         //This function finds the real path within the udev rule so that it can use the real path with the libserialport library
         //libserial port library cannot use udev paths
         char resolved_path[PATH_MAX];
-        if (realpath(this->get_parameter("UCONTROLLER_SERIAL").as_string(), resolved_path) != NULL) {
+        if (realpath(this->get_parameter("UCONTROLLER_SERIAL").as_string_array, resolved_path) != NULL) {
                 std::cout << "Real path: " << resolved_path << std::endl;
         } else {
             std::cerr << "Error resolving path" << std::endl;
@@ -56,7 +57,7 @@ public:
             rclcpp::shutdown();
         }
 
-        if(this->get_parameter("UCONTROLLER").as_string()=="STM"){
+        if(this->get_parameter("UCONTROLLER").as_string_array=="STM"){
             //config UART
             sp_set_baudrate(serial_port_, 115200);
             sp_set_bits(serial_port_, 8);
@@ -96,8 +97,7 @@ private:
         // RCLCPP_INFO(this->get_logger(), "Sent command: %s", command.c_str());
         std::cout << "Sent command: " << command.c_str() << std::endl;
     }
-    void dvlServiceCallback(const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
-                    std::shared_ptr<std_srvs::srv::SetBool::Response> response){
+    void dvlServiceCallback(const std::shared_ptr<std_srvs::srv::SetBool::Request> request, std::shared_ptr<std_srvs::srv::SetBool::Response> response){
         response->success = true;
         std::stringstream ss;
         ss << "$CONTR2," << request->data << ",5\n"; //no output to the led blink, can be implemented in the future
