@@ -6,9 +6,7 @@ from gps_msgs.msg import GPSFix
 from sensor_msgs.msg import NavSatFix
 from cougars_interfaces.msg import SystemControl
 from nav_msgs.msg import Odometry
-from message_filters import Subscriber, ApproximateTimeSynchronizer
 from rclpy.qos import qos_profile_system_default
-from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 import math
 import yaml
 
@@ -151,8 +149,6 @@ class NavSatFixToOdom(Node):
             self.get_logger().warn("NaN detected in GPS position, skipping this reading", throttle_duration_sec=10)
             return
         
-        # log that a GPS reading was received
-        self.get_logger().info(f"Received GPS reading: lat={extended_msg.latitude}, lon={extended_msg.longitude}, alt={extended_msg.altitude}")
 
         # Convert latitude/longitude to local Cartesian coordinates
         x, y = self.CalculateHaversine(self.get_parameter('origin.latitude').get_parameter_value().double_value,
@@ -174,7 +170,25 @@ class NavSatFixToOdom(Node):
 
         # Set the covariance values for x, y, and z
         if self.latest_fix is not None:
-            odom.covariance = self.latest_fix.position_covariance
+            # NavSatFix provides a 3x3 position covariance (len=9); Odometry expects 6x6 (len=36).
+            cov6 = [0.0] * 36
+            cov3 = list(self.latest_fix.position_covariance)
+            if len(cov3) == 9:
+                # Map 3x3 into the top-left of the 6x6 (x, y, z).
+                cov6[0] = cov3[0]
+                cov6[1] = cov3[1]
+                cov6[2] = cov3[2]
+                cov6[6] = cov3[3]
+                cov6[7] = cov3[4]
+                cov6[8] = cov3[5]
+                cov6[12] = cov3[6]
+                cov6[13] = cov3[7]
+                cov6[14] = cov3[8]
+                odom.pose.covariance = cov6
+            else:
+                self.get_logger().warn(
+                    f"NavSatFix position_covariance length={len(cov3)}; expected 9. Leaving odom covariance default."
+                )
 
         # Publish the odometry message
         self.publisher.publish(odom)
