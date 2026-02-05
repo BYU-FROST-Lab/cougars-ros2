@@ -51,23 +51,25 @@ class NavSatFixToOdom(Node):
         self.declare_parameter('mission_file_path', '')
         
         # Subscribe to NavSatFix
-        self.fix_sub = Subscriber(self, NavSatFix, 'fix')
+        self.fix_sub = self.create_subscription(
+            NavSatFix,
+            'fix',
+            self.fix_callback,
+            qos_profile_system_default,
+        )
         '''
         Subscription to the "extended_fix" topic with the message type GPSFix.
         '''
 
-        # Subscribe to GPSFix to get covariance
-        self.extended_fix_sub = Subscriber(self, GPSFix, 'extended_fix')
-
-        # Message synchronizer enabling callback to use both fix and extended fix
-        # This approch is necessary because currently covariance is only in the fix message, not extended fix
-        self.ts = ApproximateTimeSynchronizer(
-            [self.extended_fix_sub, self.fix_sub],
-            queue_size=10,
-            slop=0.001
+        # Subscribe to GPSFix to get covariance 
+        self.extended_fix_sub = self.create_subscription(
+            GPSFix,
+            'extended_fix',
+            self.gps_callback,
+            qos_profile_system_default,
         )
-        self.ts.registerCallback(self.gps_callback)
-        
+
+        self.latest_fix = None  # Store the latest NavSatFix message for covariance
         self.min_sats = 5  # Minimum number of satellites
 
         # Publisher for Odometry
@@ -123,7 +125,16 @@ class NavSatFixToOdom(Node):
             self.get_logger().info("GPS Odom node will not set new origin - Init flag false")
     
     
-    def gps_callback(self, extended_msg: GPSFix, fix_msg: NavSatFix):
+    def fix_callback(self, msg: NavSatFix):
+        '''
+        Callback function for the NavSatFix subscription.
+        Stores the latest NavSatFix message to be used for covariance in the GPSFix callback.
+        
+        :param msg: The NavSatFix message received from the fix topic.
+        '''
+        self.latest_fix = msg
+
+    def gps_callback(self, extended_msg: GPSFix):
         '''
         Callback function for the GPSFix subscription.
         Converts the GPS data to Odometry messages and publishes them.
@@ -140,6 +151,9 @@ class NavSatFixToOdom(Node):
             self.get_logger().warn("NaN detected in GPS position, skipping this reading", throttle_duration_sec=10)
             return
         
+        # log that a GPS reading was received
+        self.get_logger().info(f"Received GPS reading: lat={extended_msg.latitude}, lon={extended_msg.longitude}, alt={extended_msg.altitude}")
+
         # Convert latitude/longitude to local Cartesian coordinates
         x, y = self.CalculateHaversine(self.get_parameter('origin.latitude').get_parameter_value().double_value,
                                        self.get_parameter('origin.longitude').get_parameter_value().double_value,
@@ -159,9 +173,8 @@ class NavSatFixToOdom(Node):
         odom.pose.pose.position.z = z  # Use the altitude as the z-value
 
         # Set the covariance values for x, y, and z
-        odom.pose.covariance[0] = fix_msg.position_covariance[0]  # xx
-        odom.pose.covariance[7] = fix_msg.position_covariance[4]  # yy
-        odom.pose.covariance[14] = fix_msg.position_covariance[8]  # zz 
+        if self.latest_fix is not None:
+            odom.covariance = self.latest_fix.position_covariance
 
         # Publish the odometry message
         self.publisher.publish(odom)
