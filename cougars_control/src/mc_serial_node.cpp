@@ -57,7 +57,7 @@ public:
             rclcpp::shutdown();
         }
 
-        if(this->get_parameter("UCONTROLLER").as_string().c_str()=="STM"){
+        if(this->get_parameter("UCONTROLLER").as_string() == "STM"){
             //config UART
             sp_set_baudrate(serial_port_, 115200);
             sp_set_bits(serial_port_, 8);
