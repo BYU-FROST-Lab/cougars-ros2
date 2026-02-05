@@ -10,7 +10,7 @@ from geometry_msgs.msg import TwistWithCovarianceStamped, PoseWithCovarianceStam
 from dvl_msgs.msg import DVLDR
 from std_srvs.srv import SetBool
 from std_msgs.msg import Bool
-from cougars_interfaces.msg import SystemControl, SystemStatus, UCommand
+from cougars_interfaces.msg import SystemControl, SystemStatus, UCommand, WayPoint
 
 from digi.xbee.devices import XBeeDevice, RemoteXBeeDevice
 from digi.xbee.exception import TransmitException
@@ -112,7 +112,7 @@ class RFBridge(Node):
             10)
         
         self.waypoint_sub = self.create_subscription(
-            Waypoint,
+            WayPoint,
             'current_waypoint',
             self.waypoint_callback,
             10)
