@@ -151,14 +151,6 @@ def generate_launch_description():
         output=output_config,
     )
 
-    rf_bridge_node = Node(
-        package='cougars_coms',
-        executable='rf_bridge.py',
-        namespace=namespace,
-        parameters=[param_file],
-        output=output_config,
-    )
-
     # emergency_protocols_node = Node(
     #         package='cougars_control',
     #         executable='emergency_protocols',
@@ -174,7 +166,6 @@ def generate_launch_description():
         coug_kinematics_node,
         factor_graph_node,
         modem_pinger_node,
-        rf_bridge_node,
         # emergency_protocols_node,
     ])
 
