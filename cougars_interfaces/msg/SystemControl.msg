@@ -18,6 +18,9 @@ std_msgs/Bool thruster_arm
 # DVL acoustics
 std_msgs/Bool dvl_acoustics
 
+# turn on DVL and modem on mainboard
+std_msgs/Bool dvl_modem_power
+
 # Epoch start for Modem
 
 # Origin

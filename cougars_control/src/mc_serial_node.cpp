@@ -3,8 +3,8 @@
 #include <sensor_msgs/msg/fluid_pressure.hpp>
 #include <sensor_msgs/msg/battery_state.hpp>
 #include "cougars_interfaces/msg/u_command.hpp"
+#include "cougars_interfaces/msg/SystemControl.hpp"
 #include <libserialport.h>
-#include <std_srvs/srv/set_bool.hpp>
 #include <string>
 #include <sstream>
 // Added these libraries for the real path resolution
@@ -20,7 +20,8 @@ public:
         control_command_sub_ = this->create_subscription<cougars_interfaces::msg::UCommand>(
             "kinematics/command", 10, std::bind(&ControlNode::controlCommandCallback, this, std::placeholders::_1));
 
-
+        sys_control_sub_=this->create_subscription<cougars_interfaces::msg::SystemControl>(
+            "system_control", 10, std::bind(&ControlNode::controlCommandCallback, this, std::placeholders::_1))
 
         battery_pub_ = this->create_publisher<sensor_msgs::msg::BatteryState>("battery/data", 10);
 
@@ -65,9 +66,6 @@ public:
             sp_set_stopbits(serial_port_, 1);
             sp_set_flowcontrol(serial_port_, SP_FLOWCONTROL_NONE);
 
-            dvl_sw_service_ = this->create_service<std_srvs::srv::SetBool>(
-            "dvl_modem_enable", std::bind(&ControlNode::dvlServiceCallback, this, std::placeholders::_1,std::placeholders::_2));
-
         } else{
             // Initialize pressure publisher
             pressure_pub_ = this->create_publisher<sensor_msgs::msg::FluidPressure>("pressure/data", 10);
@@ -97,14 +95,10 @@ private:
         // RCLCPP_INFO(this->get_logger(), "Sent command: %s", command.c_str());
         std::cout << "Sent command: " << command.c_str() << std::endl;
     }
-    void dvlServiceCallback(const std::shared_ptr<std_srvs::srv::SetBool::Request> request, std::shared_ptr<std_srvs::srv::SetBool::Response> response){
-        response->success = true;
-        std::stringstream ss;
-        ss << "$CONTR2," << request->data << ",5\n"; //no output to the led blink, can be implemented in the future
+    void sysControlCallback(const cougars_interfaces::msg::SystemControl::SharedPtr msg){
+        ss << "$CONTR2," << (msg->dvl_modem_power==1) << ",5\n"; //no output to the led blink, can be implemented in the future
         std::string command = ss.str();
         sp_nonblocking_write(serial_port_, command.c_str(), command.size());
-        response->message = "message sent";
-
     }
     void readSerialData() {
         char temp_buffer[1024];
@@ -203,10 +197,10 @@ private:
     const char delimiter_ = '\n';
 
     rclcpp::Subscription<cougars_interfaces::msg::UCommand>::SharedPtr control_command_sub_;
+    rclcpp::Subscription<cougars_interfaces::msg::SystemControl>::SharedPtr sys_control_sub_;
     rclcpp::Publisher<sensor_msgs::msg::FluidPressure>::SharedPtr pressure_pub_;
     rclcpp::Publisher<sensor_msgs::msg::FluidPressure>::SharedPtr leak_pub_;
     rclcpp::Publisher<sensor_msgs::msg::BatteryState>::SharedPtr battery_pub_;
-    rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr dvl_sw_service_;
     rclcpp::TimerBase::SharedPtr timer_;
     struct sp_port *serial_port_;
 };

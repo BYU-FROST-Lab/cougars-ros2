@@ -3,9 +3,11 @@ import sys
 import launch
 import launch_ros.actions
 import launch_ros.descriptions
+from launch.conditions import IfCondition
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch.substitutions import EnvironmentVariable
+from launch.substitutions import PythonExpression
 
 import yaml
 
@@ -53,27 +55,37 @@ def generate_launch_description():
     )
     launch_actions.append(dvl)
 
-    # Serial Teensy connection
+    ucontroller_arg = DeclareLaunchArgument(
+        'ucontroller',
+        default_value=EnvironmentVariable('UCONTROLLER',default_value='TEENSY'),
+        description='ucontroller env variable'
+    )
+    ucontroller_serial_arg = DeclareLaunchArgument(
+        'ucontroller_serial',
+        default_value=EnvironmentVariable('UCONTROLLER_SERIAL',default_value='/dev/frost/teensy'),
+        description='ucontroller_serial env variable'
+    )
+    # Serial connection
     launch_actions.append(
         launch_ros.actions.Node(
         package='cougars_control', 
         executable='mc_serial_node', 
         namespace=LaunchConfiguration('namespace'),
         parameters=[{
-        'UCONTROLLER': EnvironmentVariable('UCONTROLLER'),
-        'UCONTROLLER_SERIAL': EnvironmentVariable('UCONTROLLER_SERIAL')
+        'UCONTROLLER': LaunchConfiguration('ucontroller'),
+        'UCONTROLLER_SERIAL': LaunchConfiguration('ucontroller_serial')
         }],
         output='log',
     ))
     # Pressure sensor over i2c for mainboard based solutions
-    if(EnvironmentVariable('UCONTROLLER')=="STM"):
-        launch_actions.append(launch_ros.actions.Node(
-            package='pressure_sensor',
-            executable='pressure_pub',
-            parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
-            namespace=LaunchConfiguration('namespace'),
-            output='log',
-        ))
+    launch_actions.append(launch_ros.actions.Node(
+        package='pressure_sensor',
+        executable='pressure_pub',
+        condition=IfCondition(PythonExpression([LaunchConfiguration('ucontroller'),"=='STM'"])),
+        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
+        namespace=LaunchConfiguration('namespace'),
+        output='log',
+    ))
 
 
     launch_actions.extend([
