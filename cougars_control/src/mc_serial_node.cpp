@@ -3,7 +3,7 @@
 #include <sensor_msgs/msg/fluid_pressure.hpp>
 #include <sensor_msgs/msg/battery_state.hpp>
 #include "cougars_interfaces/msg/u_command.hpp"
-#include "cougars_interfaces/msg/SystemControl.hpp"
+#include "cougars_interfaces/msg/system_control.hpp"
 #include <libserialport.h>
 #include <string>
 #include <sstream>
