@@ -21,7 +21,7 @@ public:
             "kinematics/command", 10, std::bind(&ControlNode::controlCommandCallback, this, std::placeholders::_1));
 
         sys_control_sub_=this->create_subscription<cougars_interfaces::msg::SystemControl>(
-            "system_control", 10, std::bind(&ControlNode::controlCommandCallback, this, std::placeholders::_1))
+            "system_control", 10, std::bind(&ControlNode::controlCommandCallback, this, std::placeholders::_1));
 
         battery_pub_ = this->create_publisher<sensor_msgs::msg::BatteryState>("battery/data", 10);
 
@@ -88,6 +88,8 @@ public:
 private:
     void controlCommandCallback(const cougars_interfaces::msg::UCommand::SharedPtr msg) {
         std::stringstream ss;
+        ss.str("");
+        ss.clear();
         // (Currently have 3 fins)
         ss << "$CONTR," << msg->fin[0] << "," << msg->fin[1] << "," << msg->fin[2] << "," << msg->thruster << "\n";
         std::string command = ss.str();
@@ -96,7 +98,10 @@ private:
         std::cout << "Sent command: " << command.c_str() << std::endl;
     }
     void sysControlCallback(const cougars_interfaces::msg::SystemControl::SharedPtr msg){
-        ss << "$CONTR2," << (msg->dvl_modem_power==1) << ",5\n"; //no output to the led blink, can be implemented in the future
+        std::stringstream ss;
+        ss.str("");
+        ss.clear();
+        ss << "$CONTR2," << msg->dvl_modem_power.data << ",5\n"; //no output to the led blink, can be implemented in the future
         std::string command = ss.str();
         sp_nonblocking_write(serial_port_, command.c_str(), command.size());
     }
