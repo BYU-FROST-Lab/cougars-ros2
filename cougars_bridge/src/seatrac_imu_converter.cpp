@@ -195,7 +195,7 @@ private:
 
     } catch(const tf2::TransformException &ex) {
       RCLCPP_WARN_THROTTLE(this->get_logger(), 
-                           *this->get_clock(), 5s,
+                           *this->get_clock(), 5,
                            "Transform not available, Waiting for Transform: %s", ex.what());
     }
 
