@@ -20,22 +20,7 @@ def generate_launch_description():
     namespace=''
     BLUEROV = "False"
  
-    # Declare launch arguments
-    namespace_launch_arg = DeclareLaunchArgument(
-        'namespace',
-        default_value=namespace,
-        description='Namespace for the vehicle'
-    )
-    param_file_launch_arg = DeclareLaunchArgument(
-        'param_file',
-        default_value=param_file,
-        description='Path to the vehicle parameter file'
-    )
-    fleet_param_launch_arg = DeclareLaunchArgument(
-        'fleet_param',
-        default_value=fleet_param,          
-        description='Path to the fleet parameter file'
-    )
+
 
     launch_actions = []
     launch_actions.extend([
