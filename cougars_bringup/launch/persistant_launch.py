@@ -12,87 +12,117 @@ from ament_index_python.packages import get_package_share_directory
 
 import os
 
+# 
+# Top level launch file.
+# Run this to start the robot.
+# Calls other launch files.
+# 
+
 
 def generate_launch_description():
-    # default parameter file paths
-    # TODO CHANGE THIS BACK
-    param_file = '/home/frostlab/config/deploy_tmp/vehicle_params.yaml' #TODO CHANGE THIS BACK
-    fleet_param = '/home/frostlab/config/deploy_tmp/fleet_params.yaml'
-    # Get the directory of the launch files
-    cougars_control_package_dir = os.path.join(
-        get_package_share_directory('cougars_control'), 'launch')
     
+  ### Launch arguments
     namespace_launch_arg = DeclareLaunchArgument(
         'namespace',
-        default_value='coug0'
-    )
+        default_value='coug0')
+    
     sim_launch_arg = DeclareLaunchArgument(
         'sim',
-        default_value='False'
-    )
+        default_value='False')
+    
     param_file_launch_arg = DeclareLaunchArgument(
         'param_file',
-        default_value=param_file
-    )
+        default_value='/home/frostlab/config/deploy_tmp/vehicle_params.yaml')
+    
     fleet_param_launch_arg = DeclareLaunchArgument(
         'fleet_param',
-        default_value=fleet_param
-    )
+        default_value='/home/frostlab/config/deploy_tmp/fleet_params.yaml')
+    
     verbose_launch_arg = DeclareLaunchArgument(
         'verbose',
-        default_value='False',    
-    )
+        default_value='False')
+    
 
-    launch_actions = []
-    launch_actions.extend([
+
+  ### Launch arguments list
+    launch_arguments = [
+        ('namespace', LaunchConfiguration('namespace')),
+        ('sim', LaunchConfiguration('sim')),
+        ('param_file', LaunchConfiguration('param_file')),
+        ('fleet_param', LaunchConfiguration('fleet_param')),
+        ('verbose', LaunchConfiguration('verbose')),
+    ]
+
+
+  ### Package launch directories
+    cougars_bridge_dir = os.path.join(
+        get_package_share_directory('cougars_bridge'), 'launch')
+    cougars_bringup_dir = os.path.join(
+        get_package_share_directory('cougars_bringup'), 'launch')
+    cougars_control_dir = os.path.join(
+        get_package_share_directory('cougars_control'), 'launch')
+    cougars_coms_dir = os.path.join(
+        get_package_share_directory('cougars_coms'), 'launch')
+    cougars_description_dir = os.path.join(
+        get_package_share_directory('cougars_description'), 'launch')   
+    cougars_localization_dir = os.path.join(
+        get_package_share_directory('cougars_localization'), 'launch')
+
+
+
+  ### Launch files
+    bridge_launch = launch.actions.IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(cougars_bridge_dir, "cougars_bridge_launch.py")),
+        launch_arguments=launch_arguments)
+    
+    coms_launch = launch.actions.IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(cougars_coms_dir, "coms_launch.py")),
+        launch_arguments=launch_arguments)
+    
+    control_launch = launch.actions.IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(cougars_control_dir, "control_launch.py")),
+        launch_arguments=launch_arguments)
+    
+    waypoint_launch = launch.actions.IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(cougars_control_dir, "waypoint_launch.py")),
+        launch_arguments=launch_arguments)
+    
+    description_launch = launch.actions.IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(cougars_description_dir, "cougars_description_launch.py")),
+        launch_arguments=launch_arguments)
+    
+    localization_launch = launch.actions.IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(cougars_localization_dir, "cougars_localization_launch.py")),
+        launch_arguments=launch_arguments)
+    
+    sensors_launch = launch.actions.IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(cougars_bringup_dir, "sensors_launch.py")),
+        launch_arguments=launch_arguments)
+    
+    recorder_diagnostics_launch = launch.actions.IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(cougars_bringup_dir, "recorder_diagnostics_launch.py")),
+        launch_arguments=launch_arguments)
+    
+    
+
+  ### Launch actions
+    launch_actions = [
+        # launch arguments
         namespace_launch_arg,
         sim_launch_arg,
         param_file_launch_arg,
         fleet_param_launch_arg,
         verbose_launch_arg,
-    ])
 
-    manual = launch.actions.IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(os.path.join(cougars_control_package_dir, "manual_launch.py"))
-        ,
-        launch_arguments=[
-            ('namespace', LaunchConfiguration('namespace')),
-            ('sim', LaunchConfiguration('sim')),
-            ('param_file', LaunchConfiguration('param_file')),
-            ('fleet_param', LaunchConfiguration('fleet_param')),
-            ('verbose', LaunchConfiguration('verbose')),
-        ],
-    )
-    launch_actions.append(manual)
-
-    # TODO add more nodes here that can be activated and disactivated
-    
-    launch_actions.extend([
-        launch_ros.actions.Node(
-            package='cougars_bringup',
-            executable='bag_recorder',
-            name='bag_recorder',
-            parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')], 
-            namespace=LaunchConfiguration('namespace'),
-            output='log',
-        ),
-        launch_ros.actions.Node(
-            package='diagnostic_common_diagnostics',
-            executable='cpu_monitor.py',
-            # parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')], 
-            namespace=LaunchConfiguration('namespace'),
-            output='log',
-            remappings=[('/diagnostics', 'diagnostics')],   # remap to a relative topic that can be namespaced
-        ),
-        launch_ros.actions.Node(
-            package='diagnostic_common_diagnostics',
-            executable='ram_monitor.py',
-            # parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')], 
-            namespace=LaunchConfiguration('namespace'),
-            remappings=[('/diagnostics', 'diagnostics')],       # remap to a relative topic that can be namespaced
-            output='log',
-        ),
-
-    ])
+        # launch files
+        bridge_launch,
+        coms_launch,
+        control_launch,
+        waypoint_launch,
+        description_launch,
+        localization_launch,
+        sensors_launch,
+        recorder_diagnostics_launch
+    ]
 
     return launch.LaunchDescription(launch_actions)

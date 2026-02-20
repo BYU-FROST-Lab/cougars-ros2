@@ -105,64 +105,9 @@ def generate_launch_description():
             
         )
 
-    # --- Define Other Standard Nodes ---
-    coug_controls_node = Node(
-        package='cougars_control',
-        executable='coug_controls',
-        namespace=namespace,
-        parameters=[param_file],
-        output=output_config,
-    )
-
-    coug_kinematics_node = Node(
-        package='cougars_control',
-        executable='coug_kinematics',
-        namespace=namespace,
-        parameters=[param_file],
-        output=output_config,
-    )
-
-    factor_graph_node = Node(
-        package='cougars_localization',
-        executable='factor_graph.py',
-        namespace=namespace,
-        parameters=[param_file],
-        output=output_config,
-    )
-
-    modem_pinger_node = Node(
-        package='seatrac',
-        executable='modem_pinger',
-        namespace=namespace,
-        parameters=[param_file],
-        output=output_config,
-    )
-
-    rf_bridge_node = Node(
-        package='cougars_coms',
-        executable='rf_bridge.py',
-        namespace=namespace,
-        parameters=[param_file],
-        output=output_config,
-    )
-
-    # emergency_protocols_node = Node(
-    #         package='cougars_control',
-    #         executable='emergency_protocols',
-    #         namespace=namespace,
-    #         parameters=[param_file],
-    #         output=output_config,
-    # )
-
     # --- Extend launch_actions with all defined Node objects ONCE ---
     launch_actions.extend([
         waypoint_node_to_launch,
-        coug_controls_node,
-        coug_kinematics_node,
-        factor_graph_node,
-        modem_pinger_node,
-        rf_bridge_node,
-        # emergency_protocols_node,
     ])
 
     # --- Return Launch Description ---
