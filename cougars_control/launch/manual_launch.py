@@ -26,15 +26,15 @@ def generate_launch_description():
     param_file = '/home/frostlab/config/deploy_tmp/vehicle_params.yaml'
     fleet_param = '/home/frostlab/config/deploy_tmp/fleet_params.yaml'
     # Get the directory of the launch files
-    localization_package_dir = os.path.join(
-        get_package_share_directory('cougars_localization'), 'launch')
     control_package_dir = os.path.join(
         get_package_share_directory('cougars_control'), 'launch')
 
+    # launch parameters
     namespace_launch_arg = DeclareLaunchArgument(
         'namespace',
         default_value='coug0'
     )
+    # if sim is true, 
     sim_launch_arg = DeclareLaunchArgument(
         'sim',
         default_value='False'
@@ -67,18 +67,23 @@ def generate_launch_description():
         verbose_launch_arg,
     ])
 
-    # Include sensors if NOT sim
-    sensors = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(localization_package_dir, "sensors_launch.py")
-        ),
-        condition=UnlessCondition(LaunchConfiguration('sim'))
-    )
-
     # Include demo if sim == True AND demo == True
     demo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(control_package_dir, "demo_launch.py")
+        ),
+        condition=IfCondition(
+            PythonExpression([
+                LaunchConfiguration('sim'), ' and ',
+                LaunchConfiguration('demo')
+            ])
+        )
+    )
+
+
+    control_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(control_package_dir, "control_launch.py")
         ),
         condition=IfCondition(
             PythonExpression([
