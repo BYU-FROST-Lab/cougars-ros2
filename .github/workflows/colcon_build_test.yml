@@ -18,7 +18,7 @@ jobs:
       - name: Checkout your repo into ros2_ws/src
         uses: actions/checkout@v4
         with:
-          path: ros2_ws/src/your_package  # optional: customize subfolder name
+          path: ros2_ws/src/your_package # optional: customize subfolder name
 
       - name: Clone dependencies into workspace
         run: |
@@ -28,7 +28,7 @@ jobs:
 
       - name: Build with colcon
         working-directory: ros2_ws
-        shell: bash  # 👈 force bash instead of sh
+        shell: bash # 👈 force bash instead of sh
         run: |
           source /opt/ros/humble/setup.bash
           colcon build --event-handlers console_cohesion+

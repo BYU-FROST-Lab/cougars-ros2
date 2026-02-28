@@ -1,24 +1,25 @@
 
-#include <cmath>
-#include <seatrac_interfaces/msg/modem_status.hpp>
-#include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
-#include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/imu.hpp>
-#include "tf2/exceptions.h"
-#include "tf2_ros/transform_listener.h"
-#include "tf2_ros/buffer.h"
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include "tf2/LinearMath/Quaternion.h"
+#include "tf2/exceptions.h"
+#include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_broadcaster.h"
+#include "tf2_ros/transform_listener.h"
+#include <cmath>
+#include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <seatrac_interfaces/msg/modem_status.hpp>
+#include <sensor_msgs/msg/imu.hpp>
 
-#include <visualization_msgs/msg/marker.hpp>
 #include <geometry_msgs/msg/point.hpp>
+#include <visualization_msgs/msg/marker.hpp>
 
 #define SQRT_OF_2_OVER_2 0.70710678118
-#define PI 3.14159265359 
-#define DEGREES_TO_RADIANS PI/180.0
+#define PI 3.14159265359
+#define DEGREES_TO_RADIANS PI / 180.0
 
-//From experimentation, 1 G, equivelant to 9.81 m/s^2, is about 250 in raw accelerometer units
+// From experimentation, 1 G, equivelant to 9.81 m/s^2, is about 250 in raw
+// accelerometer units
 #define ACC_UNITS_TO_METERS_PER_SECOND_SQUARED 9.80665 / 250.0
 
 using std::string;
@@ -48,21 +49,28 @@ public:
      */
     this->declare_parameter("magnetic_declination",
                             10.7); // 10.70° E for Utah Lake
-    magnetic_declination = this->get_parameter("magnetic_declination").as_double();
+    magnetic_declination =
+        this->get_parameter("magnetic_declination").as_double();
 
     /**
      * @param publish_rviz_markers
-     * Publishes visual markers that rviz can use to show the acceleration and angular velocity
-     * output by the seatrac imu. Usefull for debugging.
+     * Publishes visual markers that rviz can use to show the acceleration and
+     * angular velocity output by the seatrac imu. Usefull for debugging.
      */
     this->declare_parameter<bool>("publish_rviz_markers", false);
-    publish_rviz_markers_ = this->get_parameter("publish_rviz_markers").as_bool();
+    publish_rviz_markers_ =
+        this->get_parameter("publish_rviz_markers").as_bool();
 
-    if(publish_rviz_markers_) {
-      accel_pub_ = this->create_publisher<visualization_msgs::msg::Marker>("imu_accel_marker", 10);
-      ang_vel_pub_ = this->create_publisher<visualization_msgs::msg::Marker>("imu_ang_vel_marker", 10);
-      RCLCPP_INFO(this->get_logger(), "seatrac_ahrs_converter set to publish imu_accel_marker and imu_ang_vel_marker");
-      RCLCPP_INFO(this->get_logger(), "to visualize the acceleration and angular velocity in rviz");
+    if (publish_rviz_markers_) {
+      accel_pub_ = this->create_publisher<visualization_msgs::msg::Marker>(
+          "imu_accel_marker", 10);
+      ang_vel_pub_ = this->create_publisher<visualization_msgs::msg::Marker>(
+          "imu_ang_vel_marker", 10);
+      RCLCPP_INFO(this->get_logger(),
+                  "seatrac_ahrs_converter set to publish imu_accel_marker and "
+                  "imu_ang_vel_marker");
+      RCLCPP_INFO(this->get_logger(),
+                  "to visualize the acceleration and angular velocity in rviz");
     }
 
     modem_subscriber_ =
@@ -75,32 +83,29 @@ public:
         this->create_publisher<sensor_msgs::msg::Imu>("modem_imu", 10);
 
     // Initialize the transform broadcaster
-    tf_broadcaster_ =
-      std::make_unique<tf2_ros::TransformBroadcaster>(*this);
+    tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
-    tf_buffer_ =
-      std::make_unique<tf2_ros::Buffer>(this->get_clock());
-    tf_listener_ =
-      std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
-
+    tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
+    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
   }
 
 private:
-
-
   /**
    * @brief callback on modem status message
-   * 
+   *
    * First, broadcasts the transform from ned to modem to /tf
-   * Second, uses that transform to make an Imu message in the robot's coordinate frame
+   * Second, uses that transform to make an Imu message in the robot's
+   * coordinate frame
    *
    * @param msg modem status ros message
    */
-  void modem_callback(const seatrac_interfaces::msg::ModemStatus::SharedPtr msg) {
+  void
+  modem_callback(const seatrac_interfaces::msg::ModemStatus::SharedPtr msg) {
 
-    double yaw   = (M_PI / 180.0) * (0.1 * msg->attitude_yaw + magnetic_declination);
+    double yaw =
+        (M_PI / 180.0) * (0.1 * msg->attitude_yaw + magnetic_declination);
     double pitch = (M_PI / 180.0) * 0.1 * msg->attitude_pitch;
-    double roll  = (M_PI / 180.0) * 0.1 * msg->attitude_roll;
+    double roll = (M_PI / 180.0) * 0.1 * msg->attitude_roll;
 
     //==========================//
     // tf transform message     //
@@ -113,7 +118,7 @@ private:
 
     t.header.stamp = this->get_clock()->now();
     t.header.frame_id = "ned";
-    t.child_frame_id = ns_prefix()+"modem";
+    t.child_frame_id = ns_prefix() + "modem";
 
     t.transform.rotation.x = q.x();
     t.transform.rotation.y = q.y();
@@ -132,10 +137,11 @@ private:
       auto modem_imu = std::make_shared<sensor_msgs::msg::Imu>();
 
       modem_imu->header.stamp = msg->header.stamp;
-      modem_imu->header.frame_id = ns_prefix()+"robot";
+      modem_imu->header.frame_id = ns_prefix() + "robot";
 
       geometry_msgs::msg::TransformStamped tf_enu_to_robot =
-          tf_buffer_->lookupTransform("enu", ns_prefix()+"robot", tf2::TimePointZero);
+          tf_buffer_->lookupTransform("enu", ns_prefix() + "robot",
+                                      tf2::TimePointZero);
 
       modem_imu->orientation.x = tf_enu_to_robot.transform.rotation.x;
       modem_imu->orientation.y = tf_enu_to_robot.transform.rotation.y;
@@ -145,36 +151,36 @@ private:
       // The gyroscope is mounted with a 45 degree offset from the modem frame
       // So a linear transformation is needed. Determined experimentally.
       tf2::Vector3 angular_velocity(
-          DEGREES_TO_RADIANS*SQRT_OF_2_OVER_2*(msg->gyro_y - msg->gyro_x),
-          DEGREES_TO_RADIANS*SQRT_OF_2_OVER_2*(msg->gyro_x + msg->gyro_y),
-          -DEGREES_TO_RADIANS*msg->gyro_z
-      );
+          DEGREES_TO_RADIANS * SQRT_OF_2_OVER_2 * (msg->gyro_y - msg->gyro_x),
+          DEGREES_TO_RADIANS * SQRT_OF_2_OVER_2 * (msg->gyro_x + msg->gyro_y),
+          -DEGREES_TO_RADIANS * msg->gyro_z);
 
-      // The accelerometer is mounted with a 45 degree offset from the modem frame
-      // so a linear transformation is need. Determined experimentally.
+      // The accelerometer is mounted with a 45 degree offset from the modem
+      // frame so a linear transformation is need. Determined experimentally.
       tf2::Vector3 linear_acceleration(
-          ACC_UNITS_TO_METERS_PER_SECOND_SQUARED * SQRT_OF_2_OVER_2*(msg->acc_x - msg->acc_y),
-          -ACC_UNITS_TO_METERS_PER_SECOND_SQUARED * SQRT_OF_2_OVER_2*(msg->acc_x + msg->acc_y),
-          ACC_UNITS_TO_METERS_PER_SECOND_SQUARED * msg->acc_z
-      );
+          ACC_UNITS_TO_METERS_PER_SECOND_SQUARED * SQRT_OF_2_OVER_2 *
+              (msg->acc_x - msg->acc_y),
+          -ACC_UNITS_TO_METERS_PER_SECOND_SQUARED * SQRT_OF_2_OVER_2 *
+              (msg->acc_x + msg->acc_y),
+          ACC_UNITS_TO_METERS_PER_SECOND_SQUARED * msg->acc_z);
 
       geometry_msgs::msg::TransformStamped tf_modem_to_robot =
-          tf_buffer_->lookupTransform(ns_prefix()+"modem", ns_prefix()+"robot", tf2::TimePointZero);
+          tf_buffer_->lookupTransform(
+              ns_prefix() + "modem", ns_prefix() + "robot", tf2::TimePointZero);
 
       // Extract rotation
-      tf2::Quaternion rotation(
-        tf_modem_to_robot.transform.rotation.x,
-        tf_modem_to_robot.transform.rotation.y,
-        tf_modem_to_robot.transform.rotation.z,
-        tf_modem_to_robot.transform.rotation.w);
+      tf2::Quaternion rotation(tf_modem_to_robot.transform.rotation.x,
+                               tf_modem_to_robot.transform.rotation.y,
+                               tf_modem_to_robot.transform.rotation.z,
+                               tf_modem_to_robot.transform.rotation.w);
       tf2::Transform tf_transform(rotation);
       tf2::Matrix3x3 rot_matrix = tf_transform.getBasis();
 
-      //transform angular velocities and accelerations
+      // transform angular velocities and accelerations
       tf2::Vector3 robot_angular_vel = rot_matrix * angular_velocity;
       tf2::Vector3 robot_linear_accel = rot_matrix * linear_acceleration;
 
-      //copy values to imu message
+      // copy values to imu message
       modem_imu->angular_velocity.x = robot_angular_vel.x();
       modem_imu->angular_velocity.y = robot_angular_vel.y();
       modem_imu->angular_velocity.z = robot_angular_vel.z();
@@ -186,22 +192,25 @@ private:
       // Publish the IMU message
       modem_imu_pub_->publish(*modem_imu);
 
-      if(publish_rviz_markers_) {
-        publishVectorMarker(modem_imu->linear_acceleration, "acceleration", accel_pub_, 1.0, 0.0, 0.0);
-        publishVectorMarker(modem_imu->angular_velocity, "angular_velocity", ang_vel_pub_, 0.0, 1.0, 0.0);
+      if (publish_rviz_markers_) {
+        publishVectorMarker(modem_imu->linear_acceleration, "acceleration",
+                            accel_pub_, 1.0, 0.0, 0.0);
+        publishVectorMarker(modem_imu->angular_velocity, "angular_velocity",
+                            ang_vel_pub_, 0.0, 1.0, 0.0);
       }
 
-    } catch(const tf2::TransformException &ex) {
-      RCLCPP_WARN(this->get_logger(), "Transform not available, Waiting for Transform: %s", ex.what());
+    } catch (const tf2::TransformException &ex) {
+      RCLCPP_WARN(this->get_logger(),
+                  "Transform not available, Waiting for Transform: %s",
+                  ex.what());
     }
-
   }
 
   /**
    * @brief method to publish an rviz arrow marker
-   * 
+   *
    * Used to visualize the acceleration and angular velocity vectors in rviz
-   * 
+   *
    * @param vec the vector to publish
    * @param name
    * @param publisher the publisher to use (either accel_pub_ or ang_vel_pub_)
@@ -210,13 +219,11 @@ private:
    * @param b blue color intensity
    */
   void publishVectorMarker(
-    const geometry_msgs::msg::Vector3& vec,
-    const std::string& name,
-    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr publisher,
-    float r, float g, float b) 
-  {
+      const geometry_msgs::msg::Vector3 &vec, const std::string &name,
+      rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr publisher,
+      float r, float g, float b) {
     auto marker = visualization_msgs::msg::Marker();
-    marker.header.frame_id = ns_prefix()+"robot"; // Change if necessary
+    marker.header.frame_id = ns_prefix() + "robot"; // Change if necessary
     marker.header.stamp = this->now();
     marker.ns = name;
     marker.id = 0;
@@ -225,8 +232,8 @@ private:
 
     // Scale
     marker.scale.x = .01;
-    marker.scale.y = .02;// * 0.1;
-    marker.scale.z = .02;// * 0.1;
+    marker.scale.y = .02; // * 0.1;
+    marker.scale.z = .02; // * 0.1;
 
     // Start point (origin)
     geometry_msgs::msg::Point start;
@@ -236,9 +243,9 @@ private:
 
     // End point (scaled vector)
     geometry_msgs::msg::Point end;
-    end.x = vec.x*.02;
-    end.y = vec.y*.02;
-    end.z = vec.z*.02;
+    end.x = vec.x * .02;
+    end.y = vec.y * .02;
+    end.z = vec.z * .02;
 
     marker.points.push_back(start);
     marker.points.push_back(end);
@@ -254,16 +261,18 @@ private:
 
   /**
    * @return namespace prefix for local coordinate frames
-   * 
+   *
    * All tf transformations are published to the global /tf topic
    * To differentiate between coordinate frames of different vehicles
    * we prefix the coordinate frame name with the namespace of the vehicle
-   * 
+   *
    */
   string ns_prefix() {
     string ns = string(this->get_namespace());
-    if(ns.length() <= 1) return string("");
-    else return ns.substr(1)+".";
+    if (ns.length() <= 1)
+      return string("");
+    else
+      return ns.substr(1) + ".";
   }
 
   bool publish_rviz_markers_;
@@ -278,8 +287,6 @@ private:
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
-
-
 };
 
 int main(int argc, char *argv[]) {

@@ -7,37 +7,42 @@ from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python.packages import get_package_share_directory
 
+
 def generate_launch_description():
-    '''
+    """
     Launches the waypoint following mission stack.
     Accepts a 'mission_file' argument to specify which mission to run.
     Accepts a 'GPS' argument to choose between waypoint follower types.
-    '''
+    """
 
     # --- Parameter Parsing ---
     sim = "false"
     verbose = "false"
-    param_file = '/home/frostlab/config/vehicle_params.yaml'
-    namespace = 'coug4'
-    mission_file = '/home/frostlab/config/test_mission.yaml' # Default mission file
+    param_file = "/home/frostlab/config/vehicle_params.yaml"
+    namespace = "coug4"
+    mission_file = "/home/frostlab/config/test_mission.yaml"  # Default mission file
     GPS = "false"  # Initialize GPS to false (default)
 
     # --- Diagnostic Print for sys.argv ---
     print(f"[INFO] [launch] Raw sys.argv: {sys.argv}")
 
     for arg_idx, arg_val in enumerate(sys.argv):
-        print(f"[INFO] [launch] sys.argv[{arg_idx}]: '{arg_val}'") # Print each argument
-        if arg_val.startswith('namespace:='):
-            namespace = arg_val.split(':=', 1)[1]
-        elif arg_val.startswith('param_file:='):
-            param_file = arg_val.split(':=', 1)[1]
+        print(
+            f"[INFO] [launch] sys.argv[{arg_idx}]: '{arg_val}'"
+        )  # Print each argument
+        if arg_val.startswith("namespace:="):
+            namespace = arg_val.split(":=", 1)[1]
+        elif arg_val.startswith("param_file:="):
+            param_file = arg_val.split(":=", 1)[1]
         elif arg_val.startswith("sim:="):
             sim = arg_val.split(":=", 1)[1].lower()
         elif arg_val.startswith("verbose:="):
             verbose = arg_val.split(":=", 1)[1].lower()
-        elif arg_val.startswith("GPS:="): # Parse GPS flag from command line
+        elif arg_val.startswith("GPS:="):  # Parse GPS flag from command line
             parsed_gps_value = arg_val.split(":=", 1)[1].lower()
-            print(f"[INFO] [launch] Found GPS argument: '{arg_val}', Parsed value: '{parsed_gps_value}'")
+            print(
+                f"[INFO] [launch] Found GPS argument: '{arg_val}', Parsed value: '{parsed_gps_value}'"
+            )
             GPS = parsed_gps_value
         elif arg_val.startswith("mission_file:="):
             mission_file = arg_val.split(":=", 1)[1]
@@ -46,10 +51,10 @@ def generate_launch_description():
     print(f"[INFO] [launch] Final Parsed GPS flag: '{GPS}' (Type: {type(GPS)})")
     print(f"[INFO] [launch] Condition GPS == 'true' is: {GPS == 'true'}")
 
-    output_config = 'screen' if verbose == "true" else 'log'
+    output_config = "screen" if verbose == "true" else "log"
 
     # --- Package Directories ---
-    localization_pkg_dir = get_package_share_directory('cougars_localization')
+    localization_pkg_dir = get_package_share_directory("cougars_localization")
     # config_pkg_dir = get_package_share_directory('config')
 
     # --- Mission File Path ---
@@ -63,84 +68,83 @@ def generate_launch_description():
     if sim == "false":
         sensors_launch = IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(localization_pkg_dir, 'launch', "sensors_launch.py")
+                os.path.join(localization_pkg_dir, "launch", "sensors_launch.py")
             )
         )
         launch_actions.append(sensors_launch)
 
     converters_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(localization_pkg_dir, 'launch', "converters_launch.py")
+            os.path.join(localization_pkg_dir, "launch", "converters_launch.py")
         )
     )
     launch_actions.append(converters_launch)
 
     # --- Define the Waypoint Follower Node (conditionally) ---
-    waypoint_node_to_launch: Node 
+    waypoint_node_to_launch: Node
 
     if GPS == "true":
         print("[INFO] [launch] USING GPS FLAG: Launching waypoint_follower_gps")
         waypoint_node_to_launch = Node(
-            package='cougars_control',
-            executable='waypoint_follower_gps',
-            name='waypoint_follower_gps_node',
+            package="cougars_control",
+            executable="waypoint_follower_gps",
+            name="waypoint_follower_gps_node",
             namespace=namespace,
-            output='screen',
+            output="screen",
             parameters=[
-                {'waypoint_file_path': mission_yaml_path},
-                {'slip_radius': 3.0},
-                {'desired_travel_speed': 25.0},
-                {'loop_rate': 5.0}
-            ]
+                {"waypoint_file_path": mission_yaml_path},
+                {"slip_radius": 3.0},
+                {"desired_travel_speed": 25.0},
+                {"loop_rate": 5.0},
+            ],
         )
     else:
         print("[INFO] [launch] NOT USING GPS FLAG: Launching waypoint_follower")
         waypoint_node_to_launch = Node(
-            package='cougars_control',
-            executable='waypoint_follower',
-            name='waypoint_follower_node',
+            package="cougars_control",
+            executable="waypoint_follower",
+            name="waypoint_follower_node",
             namespace=namespace,
-            output='screen',
-            parameters=[param_file]
-            
+            output="screen",
+            parameters=[param_file],
         )
 
     # --- Define Other Standard Nodes ---
     coug_controls_node = Node(
-        package='cougars_control',
-        executable='coug_controls',
+        package="cougars_control",
+        executable="coug_controls",
         namespace=namespace,
         parameters=[param_file],
         output=output_config,
     )
 
     coug_kinematics_node = Node(
-        package='cougars_control',
-        executable='coug_kinematics',
+        package="cougars_control",
+        executable="coug_kinematics",
         namespace=namespace,
         parameters=[param_file],
         output=output_config,
     )
 
     factor_graph_node = Node(
-        package='cougars_localization',
-        executable='factor_graph.py',
+        package="cougars_localization",
+        executable="factor_graph.py",
         namespace=namespace,
         parameters=[param_file],
         output=output_config,
     )
 
     modem_pinger_node = Node(
-        package='seatrac',
-        executable='modem_pinger',
+        package="seatrac",
+        executable="modem_pinger",
         namespace=namespace,
         parameters=[param_file],
         output=output_config,
     )
 
     rf_bridge_node = Node(
-        package='cougars_coms',
-        executable='rf_bridge.py',
+        package="cougars_coms",
+        executable="rf_bridge.py",
         namespace=namespace,
         parameters=[param_file],
         output=output_config,
@@ -155,15 +159,17 @@ def generate_launch_description():
     # )
 
     # --- Extend launch_actions with all defined Node objects ONCE ---
-    launch_actions.extend([
-        waypoint_node_to_launch,
-        coug_controls_node,
-        coug_kinematics_node,
-        factor_graph_node,
-        modem_pinger_node,
-        rf_bridge_node,
-        # emergency_protocols_node,
-    ])
+    launch_actions.extend(
+        [
+            waypoint_node_to_launch,
+            coug_controls_node,
+            coug_kinematics_node,
+            factor_graph_node,
+            modem_pinger_node,
+            rf_bridge_node,
+            # emergency_protocols_node,
+        ]
+    )
 
     # --- Return Launch Description ---
     return LaunchDescription(launch_actions)

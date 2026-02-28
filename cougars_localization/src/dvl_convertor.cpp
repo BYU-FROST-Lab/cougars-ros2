@@ -26,7 +26,6 @@ using std::placeholders::_1;
 
 class DVLConvertor : public rclcpp::Node {
 public:
-
   DVLConvertor() : Node("dvl_convertor") {
     // publisher_dvl_depth =
     //     this->create_publisher<std_msgs::msg::Float64>("dvl_dfb", 10);
@@ -37,8 +36,7 @@ public:
         this->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>(
             "dvl/dead_reckoning", 10);
     subscriber_dvl_data = this->create_subscription<dvl_msgs::msg::DVL>(
-        "dvl/data", 10,
-        std::bind(&DVLConvertor::dvl_data_callback, this, _1));
+        "dvl/data", 10, std::bind(&DVLConvertor::dvl_data_callback, this, _1));
     subscriber_dvl_position = this->create_subscription<dvl_msgs::msg::DVLDR>(
         "dvl/position", 10,
         std::bind(&DVLConvertor::dvl_pos_callback, this, _1));
@@ -46,39 +44,40 @@ public:
 
   void dvl_data_callback(const dvl_msgs::msg::DVL::SharedPtr msg) {
 
-        geometry_msgs::msg::TwistWithCovarianceStamped stamped_msg;
+    geometry_msgs::msg::TwistWithCovarianceStamped stamped_msg;
     // This is if we copy the time when it recieves the data
     // stamped_msg.header.stamp = msg->header.stamp;
 
     // This should grab the time from the DVL that is using the NTP server
     float time = msg->time;
     stamped_msg.header.stamp.sec = static_cast<int32_t>(time);
-    stamped_msg.header.stamp.nanosec = static_cast<uint32_t>((time - stamped_msg.header.stamp.sec) * 1e9);
+    stamped_msg.header.stamp.nanosec =
+        static_cast<uint32_t>((time - stamped_msg.header.stamp.sec) * 1e9);
 
     // filling in the upper left corner of the 6X6 covariance matrix
     // HANDLE CASE WHEN COVARIANCE IS EMPTY?
     int index = 0;
     double defaultValue = 0;
     for (int i = 0; i < 36; i++) {
-            if (i % 6 < 3 && i < 15) {
+      if (i % 6 < 3 && i < 15) {
         stamped_msg.twist.covariance[i] = msg->covariance[index];
         index++;
       } else {
         stamped_msg.twist.covariance[i] = defaultValue;
       }
     }
-    
+
     stamped_msg.twist.twist.linear.x = msg->velocity.x;
     // negate z and y -- will this mess with covariance?
     stamped_msg.twist.twist.linear.y = -1.0 * msg->velocity.y;
     stamped_msg.twist.twist.linear.z = -1.0 * msg->velocity.z;
 
     // Publish the velocity only if the velocity is reported to be valid.
-    if(msg->velocity_valid){
+    if (msg->velocity_valid) {
       publisher_dvl_velocity->publish(stamped_msg);
-    }
-    else{
-      RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 4000, "Velocity not valid!");
+    } else {
+      RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 4000,
+                           "Velocity not valid!");
     }
   }
 

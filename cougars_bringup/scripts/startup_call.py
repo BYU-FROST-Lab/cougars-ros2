@@ -12,14 +12,23 @@ import time
 
 class SystemStatusPublisher(Node):
     def __init__(self):
-        super().__init__('system_status_publisher')
+        super().__init__("system_status_publisher")
 
-
-        self.coug0_publisher_ = self.create_publisher(SystemControl, '/coug0/system/status', 1)
-        self.coug1_publisher_ = self.create_publisher(SystemControl, '/coug1/system/status', 1)
-        self.coug2_publisher_ = self.create_publisher(SystemControl, '/coug2/system/status', 1)
-        self.coug3_publisher_ = self.create_publisher(SystemControl, '/coug3/system/status', 1)
-        self.get_logger().info("SystemStatusPublisher node started. Preparing message...")
+        self.coug0_publisher_ = self.create_publisher(
+            SystemControl, "/coug0/system/status", 1
+        )
+        self.coug1_publisher_ = self.create_publisher(
+            SystemControl, "/coug1/system/status", 1
+        )
+        self.coug2_publisher_ = self.create_publisher(
+            SystemControl, "/coug2/system/status", 1
+        )
+        self.coug3_publisher_ = self.create_publisher(
+            SystemControl, "/coug3/system/status", 1
+        )
+        self.get_logger().info(
+            "SystemStatusPublisher node started. Preparing message..."
+        )
 
         self.publish_user_input()
 
@@ -29,8 +38,7 @@ class SystemStatusPublisher(Node):
         # Fill header with timestamp
         msg.header = Header()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = 'system_status_input'
-
+        msg.header.frame_id = "system_status_input"
 
         # TODO let the user put in the parameters in the command line
         # Prompt user for input
@@ -54,7 +62,9 @@ class SystemStatusPublisher(Node):
             self.coug2_publisher_.publish(msg)
             self.coug3_publisher_.publish(msg)
             self.get_logger().info("Published SystemControl message.")
-            self.get_logger().info(f"Start: {msg.start.data}, Rosbag Flag: {msg.rosbag_flag.data}, Prefix: {msg.rosbag_prefix}, Thruster: {msg.thruster_arm.data}, DVL: {msg.dvl_acoustics.data}")
+            self.get_logger().info(
+                f"Start: {msg.start.data}, Rosbag Flag: {msg.rosbag_flag.data}, Prefix: {msg.rosbag_prefix}, Thruster: {msg.thruster_arm.data}, DVL: {msg.dvl_acoustics.data}"
+            )
 
         except Exception as e:
             self.get_logger().error(f"Error getting user input: {e}")
@@ -71,5 +81,5 @@ def main(args=None):
     rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
