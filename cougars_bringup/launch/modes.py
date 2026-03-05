@@ -9,7 +9,7 @@
 
 MODES = {
     "full" : {
-        "__inherits__": ['sim', '']
+
     },
     "sim"  : {},
     "surface" : {},
@@ -28,7 +28,12 @@ MODES = {
 }
 
 COMPOUND_FLAGS = {
-
+    "bridge": {
+        "depth_converter_on": True,
+        "dvl_converter_on": True,
+        "dvl_global_on": True,
+        "seatrac_ahrs_converter_on": True
+    }
 }
 
 DEFAULTS = {
@@ -66,11 +71,26 @@ def resolve_modes(mode_list, flag_overrides):
     # first mode wins → so apply reversed
     for mode in reversed(mode_list):
         update_mode(resolved, mode)
+        if mode not in MODES:
+            raise RuntimeError(f"Unknown mode: {mode}")
+        resolved.update(MODES[mode])
 
     # Explicit flags override everything
     resolved.update(flag_overrides)
 
     return resolved
+
+
+
+def add_compound_flag(resolved:dict, flag:str, value:bool):
+    # add subflags if flag is compound. Otherwise, add subvalue directly
+    if flag in COMPOUND_FLAGS:
+        for subflag, subvalue in COMPOUND_FLAGS[flag].items():
+            # if compound flag value = False, invert subvalue
+            add_compound_flag(subflag, value==subvalue)
+    else:
+        resolved[flag] = value
+
 
 
 def parse_list(value: str):
