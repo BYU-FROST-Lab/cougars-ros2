@@ -85,38 +85,40 @@ def generate_launch_description():
     )
     launch_actions.append(converters_launch)
 
-    # --- Define the Waypoint Follower Node ---
-    # GPS flag enables GPS passthrough mode for cart testing (depth=0, speed=0, fins active)
-    if GPS == "true":
-        print("[INFO] [launch] 🚗 GPS FLAG ENABLED: Activating GPS passthrough mode (cart test mode)")
-        print("[INFO] [launch]    ➤ Depth: DISABLED (0.0m)")
-        print("[INFO] [launch]    ➤ Thruster: DISABLED (0.0 speed)")
-        print("[INFO] [launch]    ➤ Fins: ACTIVE (heading control enabled)")
-        waypoint_node_to_launch = Node(
-            package='cougars_control',
-            executable='waypoint_follower',
-            name='waypoint_follower_node',
-            namespace=namespace,
-            output='screen',
-            parameters=[
-                param_file,
-                fleet_param,
-                {'use_gps_passthrough': True}  # Override parameter for GPS cart test mode
-            ]
-        )
-    else:
-        print("[INFO] [launch] Standard waypoint mode: Full control (depth, heading, speed)")
-        waypoint_node_to_launch = Node(
-            package='cougars_control',
-            executable='waypoint_follower',
-            name='waypoint_follower_node',
-            namespace=namespace,
-            output='screen',
-            parameters=[
-                param_file,
-                fleet_param
-            ]
-        )
+    # --- Define the Static Planner + Waypoint Manager nodes ---
+    # These replace the single waypoint_follower node.
+    # Static Planner: reads mission.yaml, publishes WaypointGoal, subscribes to feedback
+    # Waypoint Manager: subscribes to goal/position/depth, publishes DesiredGoal + feedback
+
+    gps_passthrough = (GPS == "true")
+    if gps_passthrough:
+        print("[INFO] [launch] GPS FLAG ENABLED: Activating GPS passthrough mode (cart test mode)")
+        print("[INFO] [launch]    Depth: DISABLED (0.0m) | Thruster: DISABLED | Fins: ACTIVE")
+
+    static_planner_node = Node(
+        package='cougars_control',
+        executable='static_planner',
+        name='static_planner_node',
+        namespace=namespace,
+        output='screen',
+        parameters=[
+            param_file,
+            fleet_param,
+        ]
+    )
+
+    waypoint_manager_params = [param_file, fleet_param]
+    if gps_passthrough:
+        waypoint_manager_params.append({'use_gps_passthrough': True})
+
+    waypoint_manager_node = Node(
+        package='cougars_control',
+        executable='waypoint_manager',
+        name='waypoint_manager_node',
+        namespace=namespace,
+        output='screen',
+        parameters=waypoint_manager_params,
+    )
 
     # --- Define Other Standard Nodes ---
     coug_controls_node = Node(
@@ -161,7 +163,8 @@ def generate_launch_description():
 
     # --- Extend launch_actions with all defined Node objects ONCE ---
     launch_actions.extend([
-        waypoint_node_to_launch,
+        static_planner_node,
+        waypoint_manager_node,
         coug_controls_node,
         coug_kinematics_node,
         factor_graph_node,

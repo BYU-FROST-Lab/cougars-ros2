@@ -13,6 +13,7 @@
 #include "cougars_interfaces/msg/desired_depth.hpp"
 #include "cougars_interfaces/msg/desired_heading.hpp"
 #include "cougars_interfaces/msg/desired_speed.hpp"
+#include "cougars_interfaces/msg/desired_goal.hpp"
 #include "cougars_interfaces/msg/u_command.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 #include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
@@ -257,6 +258,18 @@ public:
             std::bind(&CougControls::desired_speed_callback, this, _1));
 
     /**
+     * @brief Unified desired goal subscriber.
+     *
+     * Subscribes to "desired_goal" topic which combines depth, heading, and
+     * speed into a single message. Takes priority over the individual topic
+     * subscriptions when both are active.
+     */
+    desired_goal_subscription_ =
+        this->create_subscription<cougars_interfaces::msg::DesiredGoal>(
+            "desired_goal", 10,
+            std::bind(&CougControls::desired_goal_callback, this, _1));
+
+    /**
      * @brief Depth subscriber.
      *
      * This subscriber subscribes to the "depth_data" topic. It uses the
@@ -465,6 +478,29 @@ private:
   void
   desired_speed_callback(const cougars_interfaces::msg::DesiredSpeed &speed_msg) {
     this->desired_speed = speed_msg.desired_speed;
+  }
+
+  /**
+   * @brief Callback for the unified DesiredGoal message.
+   *
+   * Sets depth, heading, speed, and dfb from a single message.
+   */
+  void
+  desired_goal_callback(const cougars_interfaces::msg::DesiredGoal &goal_msg) {
+    constexpr double EPSILON = 1e-6;
+    if (std::abs(goal_msg.desired_depth - this->desired_depth) > EPSILON) {
+      RCLCPP_INFO(this->get_logger(), "New Depth Desired (via goal): %f, Old: %f",
+                  goal_msg.desired_depth, this->desired_depth);
+      this->desired_depth = goal_msg.desired_depth;
+      this->dfb = goal_msg.dfb;
+      if (this->dfb) {
+        this->depth_ref = this->altitude;
+      } else {
+        this->depth_ref = this->actual_depth;
+      }
+    }
+    this->desired_heading = goal_msg.desired_heading;
+    this->desired_speed = goal_msg.desired_speed;
   }
 
   /**
@@ -743,6 +779,8 @@ private:
       desired_heading_subscription_;
   rclcpp::Subscription<cougars_interfaces::msg::DesiredSpeed>::SharedPtr
       desired_speed_subscription_;
+  rclcpp::Subscription<cougars_interfaces::msg::DesiredGoal>::SharedPtr
+      desired_goal_subscription_;
   rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr
       actual_depth_subscription_;
   rclcpp::Subscription<geometry_msgs::msg::TwistWithCovarianceStamped>::SharedPtr

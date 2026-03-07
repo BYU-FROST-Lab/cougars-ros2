@@ -54,7 +54,7 @@ ament_target_dependencies(coug_kinematics rclcpp std_msgs cougars_interfaces std
 add_executable(emergency_protocols src/emergency_protocols.cpp)
 ament_target_dependencies(emergency_protocols rclcpp std_msgs gps_msgs dvl_msgs cougars_interfaces nav_msgs seatrac_interfaces geometry_msgs std_srvs sensor_msgs)
 
-# Add executable for the waypoint follower node
+# Add executable for the waypoint follower node (legacy, kept for backward compatibility)
 add_executable(waypoint_follower src/waypoint_follower.cpp)
 ament_target_dependencies(waypoint_follower
   rclcpp
@@ -64,7 +64,29 @@ ament_target_dependencies(waypoint_follower
   tf2
   tf2_ros
   tf2_geometry_msgs
-  yaml-cpp  # Add yaml-cpp dependency
+  yaml-cpp
+)
+
+# Static Planner: reads mission.yaml, publishes WaypointGoal, subscribes to feedback
+add_executable(static_planner src/static_planner.cpp)
+ament_target_dependencies(static_planner
+  rclcpp
+  cougars_interfaces
+  yaml-cpp
+)
+
+# Waypoint Manager: subscribes to goal/position/depth, publishes DesiredGoal + feedback
+add_executable(waypoint_manager src/waypoint_manager.cpp)
+ament_target_dependencies(waypoint_manager
+  rclcpp
+  nav_msgs
+  sensor_msgs
+  geometry_msgs
+  cougars_interfaces
+  dvl_msgs
+  tf2
+  tf2_ros
+  tf2_geometry_msgs
 )
 
 add_executable(mc_serial_node src/mc_serial_node.cpp)
@@ -75,6 +97,7 @@ target_link_libraries(mc_serial_node
   serialport
 )
 target_link_libraries(waypoint_follower yaml-cpp)
+target_link_libraries(static_planner yaml-cpp)
 # Link libraries
 target_link_libraries(coug_controls)
 target_link_libraries(coug_kinematics)
@@ -89,7 +112,9 @@ install(TARGETS
   coug_kinematics
   mc_serial_node
   emergency_protocols
-  waypoint_follower #added for waypoint follower
+  waypoint_follower
+  static_planner
+  waypoint_manager
   DESTINATION lib/${PROJECT_NAME})
 
 # Install Python modules
