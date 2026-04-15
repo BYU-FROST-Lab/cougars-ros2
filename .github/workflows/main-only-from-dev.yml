@@ -1,0 +1,27 @@
+name: Restrict merges into main from only dev
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, labeled]
+
+jobs:
+  check-source:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Enforce dev source branch
+        run: |
+          echo "Source branch: ${{ github.head_ref }}"
+
+          # Allow override if PR labeled "hotfix"
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'hotfix') }}" == "true" ]]; then
+            echo "Hotfix override detected — allowing merge"
+            exit 0
+          fi
+
+          # Normal rule
+          if [[ "${{ github.head_ref }}" != "dev" ]]; then
+            echo "Only 'dev' may merge into main (unless labeled hotfix)"
+            exit 1
+          fi
