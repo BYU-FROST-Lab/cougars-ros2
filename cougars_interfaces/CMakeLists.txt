@@ -27,6 +27,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/ControlDebug.msg"
   "msg/ControlsDebug.msg"
   "msg/SystemControl.msg"
+  "msg/FleetControl.msg"
   "msg/SystemStatus.msg"
   "msg/WayPoint.msg"
   "msg/LocalizationDataShort.msg"
