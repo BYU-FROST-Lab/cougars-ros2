@@ -45,14 +45,15 @@ ament_target_dependencies(waypoint_follower
   yaml-cpp  # Add yaml-cpp dependency
 )
 
+add_executable(waypoint_follower src/waypoint_follower.cpp)
 target_link_libraries(waypoint_follower yaml-cpp)
-# Link libraries
-target_link_libraries(coug_controls)
-target_link_libraries(coug_kinematics)
-# target_link_libraries(moos_bridge)
-# target_link_libraries(moos_bridge_sim)
-# target_link_libraries(moos_bridge_gps)
-target_link_libraries(emergency_protocols)
+
+add_executable(mission_manager src/mission_manager.cpp)
+# TODO: target_link_libraries(mission_manager ...)
+
+add_executable(waypoint_manager src/waypoint_manager.cpp)
+# TODO: target_link_libraries(waypoint_manager ...)
+
 
 # Install executables
 install(TARGETS
