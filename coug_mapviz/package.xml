@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>coug_mapviz</name>
+  <version>0.0.0</version>
+  <description>MapViz GUI for the CougUV</description>
+  <maintainer email="snelsondurrant@gmail.com">snelsondurrant</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_auto</buildtool_depend>
+
+  <depend>libqt5-core</depend>
+  <depend>libqt5-gui</depend>
+  <depend>libqt5-widgets</depend>
+  <depend>libqt5-opengl-dev</depend>
+  <depend>libqt5-opengl</depend>
+
+  <depend>rclcpp</depend>
+  <depend>geometry_msgs</depend>
+  <depend condition="$ROS_BUILD_ARCH == 'amd64'">mapviz</depend>
+  <depend condition="$ROS_BUILD_ARCH == 'amd64'">mapviz_plugins</depend>
+  <depend condition="$ROS_BUILD_ARCH == 'amd64'">tile_map</depend>
+  <depend condition="$ROS_BUILD_ARCH == 'amd64'">swri_transform_util</depend>
+  <depend>pluginlib</depend>
+  <depend>tf2</depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+    <mapviz plugin="${prefix}/mapviz_plugins.xml" />
+  </export>
+
+</package>

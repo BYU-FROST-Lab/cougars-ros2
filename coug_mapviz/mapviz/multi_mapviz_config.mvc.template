@@ -1,0 +1,78 @@
+displays:
+  - type: mapviz_plugins/tf_frame
+    name: AUV_NS
+    config:
+      visible: true
+      collapsed: true
+      frame: AUV_NS/base_link
+      color: "#00ff00"
+      draw_style: arrows
+      position_tolerance: 0
+      buffer_size: 1
+      static_arrow_sizes: true
+      arrow_size: 53
+  - type: mapviz_plugins/navsat
+    name: AUV_NS
+    config:
+      visible: true
+      collapsed: true
+      topic: /AUV_NS/gps/fix
+      color: "#55aaff"
+      draw_style: points
+      position_tolerance: 0
+      buffer_size: 1
+      qos_depth: 10
+      qos_history: 1
+      qos_reliability: 1
+      qos_durability: 2
+  - type: mapviz_plugins/path
+    name: AUV_NS
+    config:
+      visible: true
+      collapsed: true
+      topic: /AUV_NS/smoothed_path
+      color: "#ff55ff"
+      qos_depth: 10
+      qos_history: 1
+      qos_reliability: 1
+      qos_durability: 2
+  - type: mapviz_plugins/odometry
+    name: AUV_NS, GT
+    config:
+      visible: true
+      collapsed: true
+      topic: /AUV_NS/odometry/truth
+      color: "#ffffff"
+      draw_style: lines
+      position_tolerance: 0
+      buffer_size: 0
+      show_laps: false
+      show_covariance: false
+      show_all_covariances: false
+      static_arrow_sizes: false
+      arrow_size: 25
+      show_timestamps: 0
+      qos_depth: 10
+      qos_history: 1
+      qos_reliability: 1
+      qos_durability: 2
+  - type: mapviz_plugins/odometry
+    name: AUV_NS, FGO
+    config:
+      visible: true
+      collapsed: true
+      topic: /AUV_NS/odometry/global
+      color: "#00ff00"
+      draw_style: lines
+      position_tolerance: 0
+      buffer_size: 0
+      show_laps: false
+      show_covariance: true
+      show_all_covariances: false
+      static_arrow_sizes: false
+      arrow_size: 25
+      show_timestamps: 0
+      qos_depth: 10
+      qos_history: 1
+      qos_reliability: 1
+      qos_durability: 2
