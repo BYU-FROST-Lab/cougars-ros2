@@ -1,0 +1,62 @@
+capture_directory: $HOME
+fixed_frame: map
+target_frame: origin
+fix_orientation: false
+rotate_90: false
+enable_antialiasing: true
+show_displays: true
+show_status_bar: true
+show_capture_tools: true
+window_width: 1854
+window_height: 1131
+view_scale: 0.19226782
+offset_x: -206.61879
+offset_y: 5.2063818
+use_latest_transforms: true
+background: "#ffffff"
+image_transport: raw
+displays:
+  - type: mapviz_plugins/tile_map
+    name: Map
+    config:
+      visible: true
+      collapsed: true
+      custom_sources:
+        - base_url: http://localhost:8080/wmts/gm_layer/gm_grid/{level}/{x}/{y}.png
+          max_zoom: 19
+          name: Google Maps
+          type: wmts
+      bing_api_key: ""
+      stadia_api_key: ""
+      source: Google Maps
+  - type: mapviz_plugins/navsat
+    name: Raw GPS
+    config:
+      visible: true
+      collapsed: true
+      topic: /bluerov2/imu/nav_sat_fix
+      color: "#aa0000"
+      draw_style: points
+      position_tolerance: 0
+      buffer_size: 5000
+      qos_depth: 10
+      qos_history: 1
+      qos_reliability: 1
+      qos_durability: 2
+  - type: mapviz_plugins/robot_image
+    name: BlueROV Image
+    config:
+      visible: true
+      collapsed: true
+      frame: bluerov2/base_link
+      image: /home/frostlab/config/media/BlueROVIcon.png
+      width: 4
+      height: 4
+      offset_x: 0
+      offset_y: 0
+      ratio: original
+  - type: coug_mapviz/coug_waypoints
+    name: new display
+    config:
+      visible: true
+      collapsed: false

@@ -93,6 +93,7 @@ class CougWaypointsPlugin : public mapviz::MapvizPlugin {
   void CaptureRadiusChanged(double value);
 
   // Mission-level default slots (always enabled)
+  void DefaultMissionIdChanged(int value);
   void DefaultSpeedChanged(double value);
   void DefaultSlipRadiusChanged(double value);
   void DefaultCaptureRadiusChanged(double value);

@@ -46,23 +46,23 @@ include_directories(include/${PROJECT_NAME})
 #   yaml-cpp  # Add yaml-cpp dependency
 # )
 
-add_executable(mission_manager src/mission_manager.cpp)
-ament_target_dependencies(mission_manager
+add_executable(waypoint_iterator src/waypoint_iterator.cpp)
+ament_target_dependencies(waypoint_iterator
   rclcpp
   geographic_msgs
   cougars_interfaces
 )
 
-add_executable(waypoint_manager src/waypoint_manager.cpp)
-ament_target_dependencies(waypoint_manager
+add_executable(waypoint_controller src/waypoint_controller.cpp)
+ament_target_dependencies(waypoint_controller
   rclcpp
 )
 
 
 # Install executables
 install(TARGETS
-  mission_manager
-  waypoint_manager
+  waypoint_iterator
+  waypoint_controller
   # waypoint_follower #added for waypoint follower
   DESTINATION lib/${PROJECT_NAME})
 
