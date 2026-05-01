@@ -6,8 +6,6 @@
 #include "cougars_interfaces/msg/mission_feedback.hpp"
 #include "cougars_interfaces/msg/waypoint_feedback.hpp"
 #include "cougars_interfaces/msg/system_control.hpp"
-#include <memory>
-#include <unordered_map>
 
 class MissionManager : public rclcpp::Node
 {
@@ -15,19 +13,22 @@ public:
     MissionManager() : Node("waypoint_follower") {
 
         // subscribe to mission with message type route network
-        mission_sub_ = this->create_subscription<geographic_msgs::msg::RouteNetwork>(
+        this->mission_sub_ = this->create_subscription<geographic_msgs::msg::RouteNetwork>(
             "mission", 10, std::bind(&MissionManager::missionCallback, this, std::placeholders::_1));
 
         // subscription to mission feedback, used to send updates on mission progress
-        waypoint_feedback_sub_ = this->create_subscription<cougars_interfaces::msg::WaypointFeedback>(
+        this->waypoint_feedback_sub_ = this->create_subscription<cougars_interfaces::msg::WaypointFeedback>(
             "waypoint_feedback", 10, std::bind(&MissionManager::waypointFeedbackCallback, this, std::placeholders::_1));
 
         // subscription to startup
-        startup_sub_ = this->create_subscription<cougars_interfaces::msg::SystemControl>(
+        this->startup_sub_ = this->create_subscription<cougars_interfaces::msg::SystemControl>(
             "startup", 10, std::bind(&MissionManager::startupCallback, this, std::placeholders::_1));
 
         // publishes waypoints to the waypoint manager
-        waypoint_pub_ = this->create_publisher<geographic_msgs::msg::WayPoint>("waypoint", 10);
+        this->waypoint_pub_ = this->create_publisher<geographic_msgs::msg::WayPoint>("waypoint", 10);
+
+        // publishes mission feedback
+        this->mission_feedback_pub_ = this->create_publisher<cougars_interfaces::msg::MissionFeedback>("mission_feedback", 10);
 
         this->mission_state = cougars_interfaces::msg::MissionFeedback::STATE_IDLE;
 
@@ -38,7 +39,8 @@ public:
     void missionCallback(const geographic_msgs::msg::RouteNetwork::SharedPtr msg) {
         // Handle mission message
         std::unordered_map<std::string, std::string> route_props_map = getKeyValue(msg->props);
-        for (geographic_msgs::msg::WayPoint wp : msg->points) {
+        waypoint_list.clear();
+        for (geographic_msgs::msg::WayPoint& wp : msg->points) {
             std::unordered_map<std::string, std::string> props_map = getKeyValue(wp.props);
             if (props_map.find("speed") == props_map.end()){
                 geographic_msgs::msg::KeyValue speed_kv;
@@ -83,7 +85,7 @@ public:
                    return;
                }
                this->publishCurrentWaypoint();
-               RCLCPP_INFO(this->get_logger(), "Waypoint %d completed. Moving to waypoint %d.", this->current_waypoint_index - 1, this->current_waypoint_index); 
+               RCLCPP_INFO(this->get_logger(), "Waypoint %ld completed. Moving to waypoint %ld.", this->current_waypoint_index - 1, this->current_waypoint_index); 
         }
         publishMissionFeedback();
     }
@@ -154,8 +156,8 @@ private:
     rclcpp::Publisher<cougars_interfaces::msg::MissionFeedback>::SharedPtr mission_feedback_pub_;
 
     std::vector<geographic_msgs::msg::WayPoint> waypoint_list;
-    cougars_interfaces::msg::WaypointFeedback current_wp_feedback; // Store the most recent waypoint feedback message
-    uint16_t current_waypoint_index = 0;
+    cougars_interfaces::msg::WaypointFeedback current_wp_feedback = cougars_interfaces::msg::WaypointFeedback(); // Store the most recent waypoint feedback message
+    size_t current_waypoint_index = 0;
 
     uint8_t mission_state;
 
