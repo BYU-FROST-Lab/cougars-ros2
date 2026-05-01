@@ -17,6 +17,7 @@
   <depend>libqt5-opengl</depend>
 
   <depend>rclcpp</depend>
+  <depend>geographic_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend condition="$ROS_BUILD_ARCH == 'amd64'">mapviz</depend>
   <depend condition="$ROS_BUILD_ARCH == 'amd64'">mapviz_plugins</depend>
