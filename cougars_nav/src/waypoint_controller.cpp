@@ -2,7 +2,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include <memory>
 
-class WaypointManager : public rclcpp::Node
+class WaypointController : public rclcpp::Node
 {
 public:
     WaypointManager() : Node("waypoint_follower") {
@@ -12,7 +12,7 @@ public:
 int main(int argc, char * argv[])
 {
     rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<WaypointManager>()); 
+    rclcpp::spin(std::make_shared<WaypointController>()); 
     rclcpp::shutdown();
     return 0;
 }
