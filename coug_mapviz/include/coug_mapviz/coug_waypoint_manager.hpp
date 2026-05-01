@@ -23,83 +23,77 @@
 
 #include <geometry_msgs/msg/pose.hpp>
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
 namespace coug_mapviz {
 
-/**
- * @class CougWaypointManager
- * @brief Handles storage, retrieval, and serialization of waypoints.
- */
+// ---------------------------------------------------------------------------
+// Per-waypoint data
+// ---------------------------------------------------------------------------
+
+struct CougWaypoint {
+  geometry_msgs::msg::Pose pose;  // position: x=lon, y=lat, z=depth_value
+
+  // Required per waypoint
+  std::string depth_ref = "surface";  // "surface" or "bottom"
+  bool park = false;
+
+  // Optional per-waypoint overrides (absent = use MissionDefaults)
+  std::optional<double> speed;
+  std::optional<double> slip_radius;
+  std::optional<double> capture_radius;
+};
+
+// ---------------------------------------------------------------------------
+// Mission-level defaults (apply to all waypoints without per-wp overrides)
+// ---------------------------------------------------------------------------
+
+struct MissionDefaults {
+  double speed = 50.0;
+  double slip_radius = 2.0;
+  double capture_radius = 10.0;
+};
+
+// ---------------------------------------------------------------------------
+// Manager
+// ---------------------------------------------------------------------------
+
 class CougWaypointManager {
  public:
   CougWaypointManager() = default;
   ~CougWaypointManager() = default;
 
-  /**
-   * @brief Adds a waypoint to the specified topic.
-   * @param topic The topic/agent name.
-   * @param pose The waypoint pose (in target/local frame).
-   */
-  void addWaypoint(const std::string& topic, const geometry_msgs::msg::Pose& pose);
-
-  /**
-   * @brief Replaces the waypoint list for a specific topic.
-   * @param topic The topic/agent name.
-   * @param waypoints The new list of waypoints.
-   */
-  void setWaypoints(const std::string& topic,
-                    const std::vector<geometry_msgs::msg::Pose>& waypoints);
-
-  /**
-   * @brief Gets the waypoints for a specific topic.
-   * @param topic The topic name.
-   * @return A vector of waypoints.
-   */
-  std::vector<geometry_msgs::msg::Pose> getWaypoints(const std::string& topic) const;
-
-  /**
-   * @brief Gets all managed waypoints as a map.
-   * @return Map of topic to waypoint list.
-   */
-  const std::map<std::string, std::vector<geometry_msgs::msg::Pose>>& getAllWaypoints() const;
-
-  /**
-   * @brief Removes a topic and its waypoints from the manager.
-   * @param topic The topic to remove.
-   */
+  // Waypoint CRUD
+  void addWaypoint(const std::string& topic, const CougWaypoint& waypoint);
+  void setWaypoints(const std::string& topic, const std::vector<CougWaypoint>& waypoints);
+  std::vector<CougWaypoint> getWaypoints(const std::string& topic) const;
+  const std::map<std::string, std::vector<CougWaypoint>>& getAllWaypoints() const;
   void removeTopic(const std::string& topic);
-
-  /**
-   * @brief Clears waypoints for a specific topic.
-   * @param topic The topic name.
-   */
   void clearWaypoints(const std::string& topic);
-
-  /**
-   * @brief Clears all waypoints for all topics.
-   */
   void clearAllWaypoints();
 
+  // Mission defaults
+  MissionDefaults getDefaults(const std::string& topic) const;
+  void setDefaults(const std::string& topic, const MissionDefaults& defaults);
+
   /**
-   * @brief Saves all waypoints to a JSON file.
-   * @param filename The full path to the file.
-   * @param topic Optional: Only save this topic.
-   * @return True if successful.
+   * @brief Saves all (or one) topic to a JSON file.
+   *        JSON format: { "/topic": { "defaults": {...}, "waypoints": [...] } }
+   *        Old array-only format is still readable via loadFromFile.
    */
   bool saveToFile(const std::string& filename, const std::string& topic = "") const;
 
   /**
-   * @brief Loads waypoints from a JSON file.
-   * @param filename The full path to the file.
-   * @param topic Optional: Only load this topic.
-   * @return True if successful.
+   * @brief Loads waypoints (and optional defaults) from a JSON file.
+   *        Handles both the new object format and the legacy array format.
    */
   bool loadFromFile(const std::string& filename, const std::string& topic = "");
 
  private:
-  std::map<std::string, std::vector<geometry_msgs::msg::Pose>> waypoint_map_;
+  std::map<std::string, std::vector<CougWaypoint>> waypoint_map_;
+  std::map<std::string, MissionDefaults> defaults_map_;
 };
 
 }  // namespace coug_mapviz
