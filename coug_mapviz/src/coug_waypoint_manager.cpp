@@ -81,6 +81,7 @@ void CougWaypointManager::setDefaults(const std::string& topic, const MissionDef
 
 static QJsonObject defaultsToJson(const MissionDefaults& d) {
   QJsonObject obj;
+  obj["mission_id"] = d.mission_id;
   obj["speed"] = d.speed;
   obj["slip_radius"] = d.slip_radius;
   obj["capture_radius"] = d.capture_radius;
@@ -89,6 +90,7 @@ static QJsonObject defaultsToJson(const MissionDefaults& d) {
 
 static MissionDefaults defaultsFromJson(const QJsonObject& obj) {
   MissionDefaults d;
+  if (obj.contains("mission_id")) d.mission_id = obj["mission_id"].toInt();
   if (obj.contains("speed")) d.speed = obj["speed"].toDouble();
   if (obj.contains("slip_radius")) d.slip_radius = obj["slip_radius"].toDouble();
   if (obj.contains("capture_radius")) d.capture_radius = obj["capture_radius"].toDouble();

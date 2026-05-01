@@ -101,6 +101,8 @@ CougWaypointsPlugin::CougWaypointsPlugin()
   QObject::connect(this, SIGNAL(VisibleChanged(bool)), this, SLOT(VisibilityChanged(bool)));
 
   // Mission default signals (always connected — defaults are always editable)
+  QObject::connect(ui_.mission_id_editor, SIGNAL(valueChanged(int)), this,
+                   SLOT(DefaultMissionIdChanged(int)));
   QObject::connect(ui_.default_speed_editor, SIGNAL(valueChanged(double)), this,
                    SLOT(DefaultSpeedChanged(double)));
   QObject::connect(ui_.default_slip_radius_editor, SIGNAL(valueChanged(double)), this,
@@ -243,8 +245,15 @@ void CougWaypointsPlugin::PublishTopic(const std::string& topic,
   msg->header.frame_id = "wgs84";
   msg->header.stamp = node_->now();
 
-  // Mission-level defaults go in the network's own props
+  // Mission ID goes into the network's id field
   const MissionDefaults& d = manager_.getDefaults(topic);
+  msg->id.uuid.fill(0);
+  msg->id.uuid[12] = (static_cast<uint32_t>(d.mission_id) >> 24) & 0xFF;
+  msg->id.uuid[13] = (static_cast<uint32_t>(d.mission_id) >> 16) & 0xFF;
+  msg->id.uuid[14] = (static_cast<uint32_t>(d.mission_id) >> 8) & 0xFF;
+  msg->id.uuid[15] = static_cast<uint32_t>(d.mission_id) & 0xFF;
+
+  // Mission-level defaults go in the network's own props
   auto addProp = [&](const std::string& k, const std::string& v) {
     geographic_msgs::msg::KeyValue kv;
     kv.key = k;
@@ -382,7 +391,7 @@ void CougWaypointsPlugin::LoadWaypoints() {
 void CougWaypointsPlugin::Clear() {
   if (ui_.apply_all->isChecked()) {
     manager_.clearAllWaypoints();
-  } else if (!current_topic_.empty()) {
+  } else {
     manager_.clearWaypoints(current_topic_);
   }
 
@@ -509,7 +518,7 @@ void CougWaypointsPlugin::Paint(QPainter* painter, double x, double y, double sc
     }
   }
 
-  if (!current_topic_.empty()) {
+  {
     auto wps = manager_.getWaypoints(current_topic_);
     if (!wps.empty()) {
       PaintPath(painter, wps, QColor(Qt::blue), transform, selected_point_);
@@ -635,6 +644,10 @@ void CougWaypointsPlugin::UpdateEditorsFromWaypoint(const CougWaypoint& wp) {
 }
 
 void CougWaypointsPlugin::UpdateMissionDefaultsUI(const MissionDefaults& d) {
+  ui_.mission_id_editor->blockSignals(true);
+  ui_.mission_id_editor->setValue(d.mission_id);
+  ui_.mission_id_editor->blockSignals(false);
+
   ui_.default_speed_editor->blockSignals(true);
   ui_.default_speed_editor->setValue(d.speed);
   ui_.default_speed_editor->blockSignals(false);
@@ -652,22 +665,25 @@ void CougWaypointsPlugin::UpdateMissionDefaultsUI(const MissionDefaults& d) {
 // Mission-level default slots
 // ---------------------------------------------------------------------------
 
+void CougWaypointsPlugin::DefaultMissionIdChanged(int value) {
+  auto d = manager_.getDefaults(current_topic_);
+  d.mission_id = value;
+  manager_.setDefaults(current_topic_, d);
+}
+
 void CougWaypointsPlugin::DefaultSpeedChanged(double value) {
-  if (current_topic_.empty()) return;
   auto d = manager_.getDefaults(current_topic_);
   d.speed = value;
   manager_.setDefaults(current_topic_, d);
 }
 
 void CougWaypointsPlugin::DefaultSlipRadiusChanged(double value) {
-  if (current_topic_.empty()) return;
   auto d = manager_.getDefaults(current_topic_);
   d.slip_radius = value;
   manager_.setDefaults(current_topic_, d);
 }
 
 void CougWaypointsPlugin::DefaultCaptureRadiusChanged(double value) {
-  if (current_topic_.empty()) return;
   auto d = manager_.getDefaults(current_topic_);
   d.capture_radius = value;
   manager_.setDefaults(current_topic_, d);
@@ -678,7 +694,7 @@ void CougWaypointsPlugin::DefaultCaptureRadiusChanged(double value) {
 // ---------------------------------------------------------------------------
 
 void CougWaypointsPlugin::DepthChanged(double value) {
-  if (current_topic_.empty() || selected_point_ < 0) return;
+  if (selected_point_ < 0) return;
   auto wps = manager_.getWaypoints(current_topic_);
   if (static_cast<size_t>(selected_point_) >= wps.size()) return;
   wps[selected_point_].pose.position.z = value;
@@ -686,7 +702,7 @@ void CougWaypointsPlugin::DepthChanged(double value) {
 }
 
 void CougWaypointsPlugin::DepthRefChanged(int /*index*/) {
-  if (current_topic_.empty() || selected_point_ < 0) return;
+  if (selected_point_ < 0) return;
   auto wps = manager_.getWaypoints(current_topic_);
   if (static_cast<size_t>(selected_point_) >= wps.size()) return;
   wps[selected_point_].depth_ref = ui_.depth_ref_selector->currentText().toStdString();
@@ -694,7 +710,7 @@ void CougWaypointsPlugin::DepthRefChanged(int /*index*/) {
 }
 
 void CougWaypointsPlugin::ParkChanged(int /*state*/) {
-  if (current_topic_.empty() || selected_point_ < 0) return;
+  if (selected_point_ < 0) return;
   auto wps = manager_.getWaypoints(current_topic_);
   if (static_cast<size_t>(selected_point_) >= wps.size()) return;
   wps[selected_point_].park = ui_.park_checkbox->isChecked();
@@ -704,7 +720,7 @@ void CougWaypointsPlugin::ParkChanged(int /*state*/) {
 void CougWaypointsPlugin::SpeedOverrideToggled(int state) {
   bool enabled = (state == Qt::Checked);
   ui_.speed_editor->setEnabled(enabled);
-  if (current_topic_.empty() || selected_point_ < 0) return;
+  if (selected_point_ < 0) return;
   auto wps = manager_.getWaypoints(current_topic_);
   if (static_cast<size_t>(selected_point_) >= wps.size()) return;
   wps[selected_point_].speed =
@@ -713,7 +729,7 @@ void CougWaypointsPlugin::SpeedOverrideToggled(int state) {
 }
 
 void CougWaypointsPlugin::SpeedChanged(double value) {
-  if (current_topic_.empty() || selected_point_ < 0) return;
+  if (selected_point_ < 0) return;
   auto wps = manager_.getWaypoints(current_topic_);
   if (static_cast<size_t>(selected_point_) >= wps.size()) return;
   if (wps[selected_point_].speed.has_value()) {
@@ -725,7 +741,7 @@ void CougWaypointsPlugin::SpeedChanged(double value) {
 void CougWaypointsPlugin::SlipRadiusOverrideToggled(int state) {
   bool enabled = (state == Qt::Checked);
   ui_.slip_radius_editor->setEnabled(enabled);
-  if (current_topic_.empty() || selected_point_ < 0) return;
+  if (selected_point_ < 0) return;
   auto wps = manager_.getWaypoints(current_topic_);
   if (static_cast<size_t>(selected_point_) >= wps.size()) return;
   wps[selected_point_].slip_radius =
@@ -734,7 +750,7 @@ void CougWaypointsPlugin::SlipRadiusOverrideToggled(int state) {
 }
 
 void CougWaypointsPlugin::SlipRadiusChanged(double value) {
-  if (current_topic_.empty() || selected_point_ < 0) return;
+  if (selected_point_ < 0) return;
   auto wps = manager_.getWaypoints(current_topic_);
   if (static_cast<size_t>(selected_point_) >= wps.size()) return;
   if (wps[selected_point_].slip_radius.has_value()) {
@@ -746,7 +762,7 @@ void CougWaypointsPlugin::SlipRadiusChanged(double value) {
 void CougWaypointsPlugin::CaptureRadiusOverrideToggled(int state) {
   bool enabled = (state == Qt::Checked);
   ui_.capture_radius_editor->setEnabled(enabled);
-  if (current_topic_.empty() || selected_point_ < 0) return;
+  if (selected_point_ < 0) return;
   auto wps = manager_.getWaypoints(current_topic_);
   if (static_cast<size_t>(selected_point_) >= wps.size()) return;
   wps[selected_point_].capture_radius =
@@ -755,7 +771,7 @@ void CougWaypointsPlugin::CaptureRadiusOverrideToggled(int state) {
 }
 
 void CougWaypointsPlugin::CaptureRadiusChanged(double value) {
-  if (current_topic_.empty() || selected_point_ < 0) return;
+  if (selected_point_ < 0) return;
   auto wps = manager_.getWaypoints(current_topic_);
   if (static_cast<size_t>(selected_point_) >= wps.size()) return;
   if (wps[selected_point_].capture_radius.has_value()) {
@@ -803,8 +819,6 @@ int CougWaypointsPlugin::GetClosestPoint(const QPointF& point, double& distance)
 }
 
 bool CougWaypointsPlugin::handleMousePress(QMouseEvent* event) {
-  if (current_topic_.empty()) return false;
-
   dragged_point_ = -1;
   double distance = 0.0;
   int closest_point = GetClosestPoint(event->localPos(), distance);
@@ -830,8 +844,6 @@ bool CougWaypointsPlugin::handleMousePress(QMouseEvent* event) {
 }
 
 bool CougWaypointsPlugin::handleMouseRelease(QMouseEvent* event) {
-  if (current_topic_.empty()) return false;
-
   qreal dist = QLineF(mouse_down_pos_, event->localPos()).length();
   qint64 ms = QDateTime::currentMSecsSinceEpoch() - mouse_down_time_;
 
@@ -878,8 +890,6 @@ bool CougWaypointsPlugin::handleMouseRelease(QMouseEvent* event) {
 }
 
 bool CougWaypointsPlugin::handleMouseMove(QMouseEvent* event) {
-  if (current_topic_.empty()) return false;
-
   if (dragged_point_ >= 0) {
     if (selected_point_ != -1) {
       selected_point_ = -1;
