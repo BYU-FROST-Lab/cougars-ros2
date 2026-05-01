@@ -40,6 +40,14 @@ def generate_launch_description():
         'verbose',
         default_value='False',    
     )
+    fins_manual_launch_arg = DeclareLaunchArgument(
+        'fins_manual',
+        default_value='False'
+    )
+    manual_mission_launch_arg = DeclareLaunchArgument(
+        'manual_mission',
+        default_value='True'
+    )
 
   ### Get launch argument values
     namespace = LaunchConfiguration('namespace')
@@ -104,6 +112,8 @@ def generate_launch_description():
         demo_launch_arg,
         param_file_launch_arg,
         fleet_param_launch_arg,
+        fins_manual_launch_arg,
+        manual_mission_launch_arg,
         verbose_launch_arg,
 
         # nodes

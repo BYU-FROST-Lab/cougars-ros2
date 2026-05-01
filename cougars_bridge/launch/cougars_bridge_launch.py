@@ -39,26 +39,26 @@ def generate_launch_description():
 
     # declare nodes
     depth_converter = launch_ros.actions.Node(
-        package='cougars_localization',
+        package='cougars_bridge',
         executable='depth_converter',
         parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
         namespace=LaunchConfiguration('namespace'),
     )
     dvl_converter = launch_ros.actions.Node(
-        package='cougars_localization',
+        package='cougars_bridge',
         executable='dvl_converter',
         parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
         namespace=LaunchConfiguration('namespace'),
     )
     dvl_global = launch_ros.actions.Node(
-        package='cougars_localization',
+        package='cougars_bridge',
         executable='dvl_global',
         parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
         namespace=LaunchConfiguration('namespace'),
     )
     seatrac_ahrs_convertor = launch_ros.actions.Node(
-        package='cougars_localization',
-        executable='seatrac_ahrs_convertor',
+        package='cougars_bridge',
+        executable='seatrac_imu_converter',
         parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
         namespace=LaunchConfiguration('namespace'),
     )
