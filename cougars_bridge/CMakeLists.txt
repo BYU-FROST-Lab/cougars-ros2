@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(cougars_control)
+project(cougars_bridge)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -22,44 +22,51 @@ find_package(cougars_interfaces REQUIRED)
 find_package(seatrac_interfaces REQUIRED)
 find_package(dvl_msgs REQUIRED)
 find_package(gps_msgs REQUIRED)
-# find_package(MOOS 10 REQUIRED)
 find_package(Eigen3 REQUIRED)
-# find_package(robot_localization REQUIRED) #add if using the EKF
 find_package(tf2_ros REQUIRED)
-find_package(tf2_geometry_msgs REQUIRED) # Add this to be safe, as you use it directly
+find_package(tf2_geometry_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 
 include_directories(include/${PROJECT_NAME})
 
-add_executable(coug_controls src/coug_controls.cpp src/pid.cpp)
-ament_target_dependencies(coug_controls rclcpp std_msgs cougars_interfaces sensor_msgs geometry_msgs std_srvs dvl_msgs)
+add_executable(depth_converter src/depth_converter.cpp)
+ament_target_dependencies(depth_converter rclcpp std_msgs std_srvs cougars_interfaces geometry_msgs sensor_msgs)
 
-add_executable(coug_kinematics src/coug_kinematics.cpp)
-ament_target_dependencies(coug_kinematics rclcpp std_msgs cougars_interfaces std_srvs)
+add_executable(dvl_converter src/dvl_converter.cpp)
+ament_target_dependencies(dvl_converter rclcpp std_msgs cougars_interfaces geometry_msgs dvl_msgs)
 
-add_executable(emergency_protocols src/emergency_protocols.cpp)
-ament_target_dependencies(emergency_protocols rclcpp std_msgs gps_msgs dvl_msgs cougars_interfaces nav_msgs seatrac_interfaces geometry_msgs std_srvs sensor_msgs)
-
-add_executable(mc_serial_node src/mc_serial_node.cpp)
-ament_target_dependencies(mc_serial_node rclcpp std_msgs cougars_interfaces sensor_msgs)
-
-# Link libraries
-target_link_libraries(mc_serial_node
-  serialport
+add_executable(seatrac_imu_converter src/seatrac_imu_converter.cpp)
+ament_target_dependencies(
+  seatrac_imu_converter 
+  rclcpp 
+  std_msgs 
+  seatrac_interfaces
+  geometry_msgs
+  sensor_msgs
+  tf2_ros
+  tf2_geometry_msgs
+  visualization_msgs
 )
+
+add_executable(dvl_global src/dvl_global.cpp)
+ament_target_dependencies(dvl_global rclcpp std_msgs geometry_msgs tf2_ros tf2_geometry_msgs)
+
+add_executable(static_tf_publisher src/static_tf_publisher.cpp)
+ament_target_dependencies(static_tf_publisher rclcpp std_msgs geometry_msgs tf2_ros tf2_geometry_msgs)
+
 # Link libraries
-target_link_libraries(coug_controls)
-target_link_libraries(coug_kinematics)
-# target_link_libraries(moos_bridge)
-# target_link_libraries(moos_bridge_sim)
-# target_link_libraries(moos_bridge_gps)
-target_link_libraries(emergency_protocols)
+target_link_libraries(depth_converter)
+target_link_libraries(dvl_converter)
+target_link_libraries(seatrac_imu_converter)
+target_link_libraries(dvl_global)
 
 # Install executables
 install(TARGETS
-  coug_controls
-  coug_kinematics
-  mc_serial_node
-  emergency_protocols
+  depth_converter
+  dvl_converter
+  seatrac_imu_converter
+  dvl_global
+  static_tf_publisher
   DESTINATION lib/${PROJECT_NAME})
 
 # Install Python modules
@@ -67,7 +74,10 @@ install(TARGETS
 
 # Install Python executables
 install(PROGRAMS
-  scripts/dummy_factor_starter.py
+  scripts/gps_odom.py
+  scripts/dvl_manager.py
+  scripts/nmea_constructor.py
+  scripts/mavlink_bridge.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
