@@ -17,6 +17,7 @@ find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(geographic_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(cougars_interfaces REQUIRED)
 find_package(seatrac_interfaces REQUIRED)
@@ -48,6 +49,8 @@ include_directories(include/${PROJECT_NAME})
 add_executable(mission_manager src/mission_manager.cpp)
 ament_target_dependencies(mission_manager
   rclcpp
+  geographic_msgs
+  cougars_interfaces
 )
 
 add_executable(waypoint_manager src/waypoint_manager.cpp)
