@@ -13,6 +13,7 @@ find_package(ament_cmake REQUIRED)
 
 find_package(std_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(unique_identifier_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
@@ -22,6 +23,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/DesiredSpeed.msg"
   "msg/LeakStatus.msg"
   "msg/LocalizationData.msg"
+  "msg/MissionFeedback.msg"
   "msg/UCommand.msg"
   "srv/EmergencyStop.srv"
   "msg/ControlDebug.msg"
@@ -30,9 +32,11 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/FleetControl.msg"
   "msg/SystemStatus.msg"
   "msg/WayPoint.msg"
+  "msg/WaypointFeedback.msg"
   "msg/LocalizationDataShort.msg"
   DEPENDENCIES std_msgs
   DEPENDENCIES nav_msgs
+  DEPENDENCIES unique_identifier_msgs
 )
 
 if(BUILD_TESTING)

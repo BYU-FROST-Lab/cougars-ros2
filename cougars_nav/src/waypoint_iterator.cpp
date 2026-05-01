@@ -1,11 +1,13 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "geographic_msgs/msg/route_network.hpp"
-#include "geographic_msgs/msg/Waypoint.hpp"
+#include "geographic_msgs/msg/way_point.hpp"
+#include "geographic_msgs/msg/key_value.hpp"
 #include "cougars_interfaces/msg/mission_feedback.hpp"
 #include "cougars_interfaces/msg/waypoint_feedback.hpp"
 #include "cougars_interfaces/msg/system_control.hpp"
 #include <memory>
+#include <unordered_map>
 
 class MissionManager : public rclcpp::Node
 {
@@ -25,33 +27,46 @@ public:
             "startup", 10, std::bind(&MissionManager::startupCallback, this, std::placeholders::_1));
 
         // publishes waypoints to the waypoint manager
-        waypoint_pub_ = this->create_publisher<geographic_msgs::msg::Waypoint>("waypoint", 10);
+        waypoint_pub_ = this->create_publisher<geographic_msgs::msg::WayPoint>("waypoint", 10);
 
         this->mission_state = cougars_interfaces::msg::MissionFeedback::STATE_IDLE;
 
-        this->mission_start_time = rclcpp::Time(0);
+        this->start_time = rclcpp::Time(0);
 
     }
 
     void missionCallback(const geographic_msgs::msg::RouteNetwork::SharedPtr msg) {
         // Handle mission message
-        for (geographic_msgs::msg::Waypoint wp : msg.points) {
-            if (wp.props.find("speed") == wp.props.end()){
-                wp.props["speed"] = msg.props.find("speed")->second;
+        std::unordered_map<std::string, std::string> route_props_map = getKeyValue(msg->props);
+        for (geographic_msgs::msg::WayPoint wp : msg->points) {
+            std::unordered_map<std::string, std::string> props_map = getKeyValue(wp.props);
+            if (props_map.find("speed") == props_map.end()){
+                geographic_msgs::msg::KeyValue speed_kv;
+                speed_kv.key = "speed";
+                speed_kv.value = route_props_map["speed"];
+                wp.props.push_back(speed_kv);
             }
-            if (wp.props.find("slip_rad") == wp.props.end()) {
-                wp.props["slip_rad"] = msg.props.find("slip_rad")->second;
+            if (props_map.find("slip") == props_map.end()){
+                geographic_msgs::msg::KeyValue slip_kv;
+                slip_kv.key = "slip";
+                slip_kv.value = route_props_map["slip"];
+                wp.props.push_back(slip_kv);
             }
-            if (wp.props.find("cap_rad") == wp.props.end()) {
-                wp.props["cap_rad"] = msg.props.find("cap_rad")->second;
+            if (props_map.find("cap") == props_map.end()){
+                geographic_msgs::msg::KeyValue cap_kv;
+                cap_kv.key = "cap";
+                cap_kv.value = route_props_map["cap"];
+                wp.props.push_back(cap_kv);
             }
+            
+           
             waypoint_list.push_back(wp);
         }
     }
 
     void waypointFeedbackCallback(const cougars_interfaces::msg::WaypointFeedback::SharedPtr msg) {
         // Handle waypoint feedback message
-        if (this->mission_state != cougars_interfaces::msg::MissionFeedback::RUNNING) {
+        if (this->mission_state != cougars_interfaces::msg::MissionFeedback::STATE_RUNNING) {
             RCLCPP_WARN(this->get_logger(), "Received waypoint feedback while mission is not active. Ignoring.");
             return;
         }
@@ -75,9 +90,9 @@ public:
 
     void startupCallback(const cougars_interfaces::msg::SystemControl::SharedPtr msg) {
         // Handle startup message
-        if (this->mission_state != cougars_interfaces::msg::MissionFeedback::RUNNING && msg->start.data == true) {
+        if (this->mission_state != cougars_interfaces::msg::MissionFeedback::STATE_RUNNING && msg->start.data == true) {
             this->start_time = this->now();
-            this->mission_state = cougars_interfaces::msg::MissionFeedback::RUNNING;
+            this->mission_state = cougars_interfaces::msg::MissionFeedback::STATE_RUNNING;
             this->current_waypoint_index = 0;
             this->publishCurrentWaypoint();
             RCLCPP_INFO(this->get_logger(), "Mission started. First waypoint published.");
@@ -120,7 +135,14 @@ public:
         }
     }
 
-    auto getKeyValue()
+    template<typename Container>
+    std::unordered_map<std::string, std::string> getKeyValue(const Container &props) {
+            std::unordered_map<std::string, std::string> key_value_map;
+            for (const auto& prop : props) {
+                key_value_map[prop.key] = prop.value;
+            }
+            return key_value_map;
+    }
 
 private:
 
@@ -128,10 +150,10 @@ private:
     rclcpp::Subscription<cougars_interfaces::msg::SystemControl>::SharedPtr startup_sub_;
     rclcpp::Subscription<cougars_interfaces::msg::WaypointFeedback>::SharedPtr waypoint_feedback_sub_;
 
-    rclcpp::Publisher<geographic_msgs::msg::Waypoint>::SharedPtr waypoint_pub_;
+    rclcpp::Publisher<geographic_msgs::msg::WayPoint>::SharedPtr waypoint_pub_;
     rclcpp::Publisher<cougars_interfaces::msg::MissionFeedback>::SharedPtr mission_feedback_pub_;
 
-    std::vector<geographic_msgs::msg::Waypoint> waypoint_list;
+    std::vector<geographic_msgs::msg::WayPoint> waypoint_list;
     cougars_interfaces::msg::WaypointFeedback current_wp_feedback; // Store the most recent waypoint feedback message
     uint16_t current_waypoint_index = 0;
 
