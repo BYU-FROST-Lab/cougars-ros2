@@ -2,6 +2,7 @@ import launch
 import launch_ros.actions
 import launch_ros.descriptions
 from launch.substitutions import LaunchConfiguration
+from launch.actions import DeclareLaunchArgument
 
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python.packages import get_package_share_directory
@@ -35,45 +36,48 @@ def generate_launch_description():
         default_value="/home/frostlab/config/deploy_tmp/fleet_params.yaml",
         description='Path to the fleet parameter file'
     )
+
+    # declare nodes
+    depth_converter = launch_ros.actions.Node(
+        package='cougars_localization',
+        executable='depth_converter',
+        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
+        namespace=LaunchConfiguration('namespace'),
+    )
+    dvl_converter = launch_ros.actions.Node(
+        package='cougars_localization',
+        executable='dvl_converter',
+        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
+        namespace=LaunchConfiguration('namespace'),
+    )
+    dvl_global = launch_ros.actions.Node(
+        package='cougars_localization',
+        executable='dvl_global',
+        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
+        namespace=LaunchConfiguration('namespace'),
+    )
+    seatrac_ahrs_convertor = launch_ros.actions.Node(
+        package='cougars_localization',
+        executable='seatrac_ahrs_convertor',
+        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
+        namespace=LaunchConfiguration('namespace'),
+    )
+
+
+    # compile launch actions
     launch_actions = [
-        # launch arguments
+
+        # launch arguements
         namespace_launch_arg,
         param_file_launch_arg,
         fleet_param_launch_arg,
+
+        # launch nodes
+        depth_converter,
+        dvl_converter,
+        dvl_global,
+        seatrac_ahrs_convertor
+
     ]
-
-  ### helper function to add nodes
-    # Nodes all recieve the same parameter file, namespace,
-    # and come with a turn-off condition
-    def add_node(package:str, executable:str, default_on:bool=True, **kwargs):
-        node_on = DeclareLaunchArgument(executable+'_on', default_value=default_on)
-        node = launch_ros.actions.Node(
-            package=package,
-            executable=executable,
-            parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
-            namespace=LaunchConfiguration('namespace'),
-            condition=IfCondition(LaunchConfiguration(executable+'_on')),
-            **kwargs
-        )
-        launch_actions.extend(node_on, node)
-
-
-  ### add ros nodes
-    add_node(
-        package='cougars_localization',
-        executable='depth_converter'
-    )
-    add_node(
-        package='cougars_localization',
-        executable='dvl_converter'
-    )
-    add_node(
-        package='cougars_localization',
-        executable='dvl_global'
-    )
-    add_node(
-        package='cougars_localization',
-        executable='seatrac_ahrs_converter'
-    )
 
     return launch.LaunchDescription(launch_actions)
