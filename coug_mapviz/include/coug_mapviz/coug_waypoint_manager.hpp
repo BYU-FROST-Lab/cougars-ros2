@@ -51,6 +51,7 @@ struct CougWaypoint {
 // ---------------------------------------------------------------------------
 
 struct MissionDefaults {
+  int32_t mission_id = 0;
   double speed = 50.0;
   double slip_radius = 2.0;
   double capture_radius = 10.0;
