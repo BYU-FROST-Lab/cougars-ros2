@@ -22,8 +22,8 @@ find_package(cougars_interfaces REQUIRED)
 find_package(seatrac_interfaces REQUIRED)
 find_package(dvl_msgs REQUIRED)
 find_package(gps_msgs REQUIRED)
-# find_package(tf2_ros REQUIRED)
-# find_package(tf2_geometry_msgs REQUIRED) # Add this to be safe, as you use it directly
+find_package(tf2_ros REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED) # Add this to be safe, as you use it directly
 
 # Waypoints dependencies
 # Find yaml-cpp package
@@ -33,31 +33,34 @@ find_package(yaml-cpp REQUIRED)
 include_directories(include/${PROJECT_NAME})
 
 # Add executable for the waypoint follower node
-add_executable(waypoint_follower src/waypoint_follower.cpp)
-ament_target_dependencies(waypoint_follower
-  rclcpp
-  nav_msgs
-  sensor_msgs
-  cougars_interfaces
-  tf2
-  tf2_ros
-  tf2_geometry_msgs
-  yaml-cpp  # Add yaml-cpp dependency
-)
-
-add_executable(waypoint_follower src/waypoint_follower.cpp)
-target_link_libraries(waypoint_follower yaml-cpp)
+# add_executable(waypoint_follower src/waypoint_follower_old.cpp)
+# ament_target_dependencies(waypoint_follower
+#   rclcpp
+#   nav_msgs
+#   sensor_msgs
+#   cougars_interfaces
+#   tf2
+#   tf2_ros
+#   tf2_geometry_msgs
+#   yaml-cpp  # Add yaml-cpp dependency
+# )
 
 add_executable(mission_manager src/mission_manager.cpp)
-# TODO: target_link_libraries(mission_manager ...)
+ament_target_dependencies(mission_manager
+  rclcpp
+)
 
 add_executable(waypoint_manager src/waypoint_manager.cpp)
-# TODO: target_link_libraries(waypoint_manager ...)
+ament_target_dependencies(waypoint_manager
+  rclcpp
+)
 
 
 # Install executables
 install(TARGETS
-  waypoint_follower #added for waypoint follower
+  mission_manager
+  waypoint_manager
+  # waypoint_follower #added for waypoint follower
   DESTINATION lib/${PROJECT_NAME})
 
 # Install Python modules

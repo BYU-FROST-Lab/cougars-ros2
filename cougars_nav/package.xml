@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>cougars_control</name>
+  <name>cougars_nav</name>
   <version>1.0.0</version>
-  <description>Control nodes for use with the CoUGARs fleet in the BYU FRoSt Lab</description>
-  <maintainer email="snelsondurrant@gmail.com">Nelson Durrant</maintainer>
+  <description>Waypoint planning for the CougUV</description>
+  <maintainer email="cas314@byu.edu">Clayton Smith</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

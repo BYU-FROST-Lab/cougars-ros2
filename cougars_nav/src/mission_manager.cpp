@@ -1,9 +1,13 @@
 
 #include "rclcpp/rclcpp.hpp"
+#include <memory>
 
 class MissionManager : public rclcpp::Node
 {
-}
+public:
+    MissionManager() : Node("waypoint_follower") {
+    }
+};
 
 int main(int argc, char * argv[])
 {
