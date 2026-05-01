@@ -102,7 +102,7 @@ def generate_launch_description():
         parameters=[param_file, fleet_param],
         namespace=namespace,
         output='log',
-        condition=UnlessCondition(LaunchConfiguration('manual_mission'))
+        condition=IfCondition(LaunchConfiguration('manual_mission'))
     )
 
     launch_actions = [

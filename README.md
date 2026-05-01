@@ -14,6 +14,58 @@ All dependencies for this project are assumed to be available within the **`fros
 
 ---
 
+## Usage
+
+Build ros2 workspace: `colcon build`
+
+Run persistant launch:
+```bash
+ros2 launch cougars_bringup persistant_launch.py \
+        namespace:=<namespace> \
+        param_file:=<param_file> \
+        fleet_param:=<fleet_param> \
+        flags:=<flag1>:<value>,<flag2>:<value>
+```
+
+### Arguments
+
+| Argument | Default | Description |
+|---|---|---|
+| `namespace` | `coug0` | ROS 2 namespace for the vehicle (e.g., `coug1`, `coug2`) |
+| `param_file` | `/home/frostlab/config/deploy_tmp/vehicle_params.yaml` | Path to the vehicle-specific parameter YAML file |
+| `fleet_param` | `/home/frostlab/config/deploy_tmp/fleet_params.yaml` | Path to the fleet-wide parameter YAML file |
+| `flags` | _(empty)_ | Comma-separated `key:value` pairs forwarded as launch arguments to every child launch file |
+
+### Flags
+
+The `flags` argument is a comma-separated list of `key:value` pairs. Each pair is parsed and injected as an individual launch argument into all child launch files. A bare key with no value (e.g., `verbose`) is treated as `true`.
+
+**Format:** `flags:=key1:value1,key2:value2,key3`
+
+**Example:**
+```bash
+ros2 launch cougars_bringup persistant_launch.py \
+        namespace:=coug1 \
+        param_file:=/home/frostlab/config/deploy_tmp/vehicle_params.yaml \
+        fleet_param:=/home/frostlab/config/deploy_tmp/fleet_params.yaml \
+        flags:=sim:true,verbose,acoustic_pinger:true
+```
+
+#### Available Flags
+
+| Flag | Default | Package | Description |
+|---|---|---|---|
+| `sim` | `false` | cougars_control | Run in simulation mode |
+| `demo` | `false` | cougars_control | Run in demo mode |
+| `verbose` | `false` | cougars_control | Enable verbose (`screen`) output from control nodes |
+| `fins_manual` | `false` | cougars_control | When `true`, replaces `coug_controls` with `fins_manual.py` for direct fin control |
+| `manual_mission` | `true` | cougars_control | When `true`, launches `manual_mission.py` in place of the waypoint follower |
+| `acoustic_pinger` | `false` | cougars_coms | When `true`, launches the vehicle acoustic pinger (sends acoustic messages on repeat) |
+| `debug` | `false` | cougars_coms | When `true`, enables debug logging for the RF bridge |
+
+
+---
+
 ## 📂 High-Level Overview of Packages
 
 * **⚙️ cougars\_control**
