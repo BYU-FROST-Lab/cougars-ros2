@@ -15,10 +15,6 @@ def generate_launch_description():
     - manual_mission: if true, run manual_mission.py instead of waypoint_follower.cpp. fins_manual and manual_mission are NOT related.  fins_manual directly controls the fins, while manual_mission runs a timed mission.
     '''
 
-  ### default parameter file paths
-    param_file = '/home/frostlab/config/deploy_tmp/vehicle_params.yaml'
-    fleet_param = '/home/frostlab/config/deploy_tmp/fleet_params.yaml'
-
   ### launch args
     namespace_launch_arg = DeclareLaunchArgument(
         'namespace',
@@ -34,23 +30,31 @@ def generate_launch_description():
     )
     param_file_launch_arg = DeclareLaunchArgument(
         'param_file',
-        default_value=param_file
+        default_value='/home/frostlab/config/deploy_tmp/vehicle_params.yaml'
     )
     fleet_param_launch_arg = DeclareLaunchArgument(
         'fleet_param',
-        default_value=fleet_param
+        default_value='/home/frostlab/config/deploy_tmp/fleet_params.yaml'
     )
     verbose_launch_arg = DeclareLaunchArgument(
         'verbose',
         default_value='False',    
     )
 
+  ### Get launch argument values
+    namespace = LaunchConfiguration('namespace')
+    param_file = LaunchConfiguration('param_file')
+    fleet_param = LaunchConfiguration('fleet_param')
+
+
+  ### Node definitions
+
     # initialize communication with teensy
     mc_serial_node = Node(
         package='cougars_control',
         executable='mc_serial_node',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
-        namespace=LaunchConfiguration('namespace'),
+        parameters=[param_file, fleet_param],
+        namespace=namespace,
         output='log',
     )
 
@@ -58,16 +62,16 @@ def generate_launch_description():
     kinematics_node = Node(
         package='cougars_control',
         executable='coug_kinematics',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
-        namespace=LaunchConfiguration('namespace'),
+        parameters=[param_file, fleet_param],
+        namespace=namespace,
         output='log',
     )
 
     controls_node = Node(
         package='cougars_control',
         executable='coug_controls',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
-        namespace=LaunchConfiguration('namespace'),
+        parameters=[param_file, fleet_param],
+        namespace=namespace,
         output='log',
         condition=UnlessCondition(LaunchConfiguration('fins_manual'))
     )
@@ -76,8 +80,8 @@ def generate_launch_description():
     fins_manual_node = Node(
         package='cougars_control',
         executable='fins_manual.py',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
-        namespace=LaunchConfiguration('namespace'),
+        parameters=[param_file, fleet_param],
+        namespace=namespace,
         output='log',
         emulate_tty=True,
         condition=IfCondition(LaunchConfiguration('fins_manual'))
@@ -87,8 +91,8 @@ def generate_launch_description():
     manual_mission_node = Node(
         package='cougars_control',
         executable='manual_mission.py',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
-        namespace=LaunchConfiguration('namespace'),
+        parameters=[param_file, fleet_param],
+        namespace=namespace,
         output='log',
         condition=UnlessCondition(LaunchConfiguration('manual_mission'))
     )

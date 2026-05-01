@@ -39,8 +39,7 @@ def generate_launch_description():
     flags_arg = DeclareLaunchArgument(
         'flags',
         default_value='',
-        description=
-        'Comma-separate list of launch argument overrides.'
+        description='Comma-separate list of launch argument overrides.'
     )
     
 
@@ -92,10 +91,10 @@ def generate_launch_description():
             os.path.join(control_dir, "waypoint_launch.py")),
         launch_arguments=launch_args)
     
-    description_launch = launch.actions.IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(description_dir, "cougars_description_launch.py")),
-        launch_arguments=launch_args)
+    # description_launch = launch.actions.IncludeLaunchDescription(
+    #     PythonLaunchDescriptionSource(
+    #         os.path.join(description_dir, "cougars_description_launch.py")),
+    #     launch_arguments=launch_args)
     
     localization_launch = launch.actions.IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -126,7 +125,7 @@ def generate_launch_description():
         coms_launch,
         control_launch,
         waypoint_launch,
-        description_launch,
+        # description_launch,
         localization_launch,
         sensors_launch,
         recorder_diagnostics_launch
@@ -151,13 +150,15 @@ def parse_flags(flag_str: str):
             continue
 
         if ":" in item:
-            k, v = item.split(":", 1)
-            if v.strip().lower() == "true":
-                result[k.strip()] = True
-            elif v.strip().lower() == "false":
-                result[k.strip()] = False
-            else: 
-                result[k.strip()] = v.strip()
+            k, v = (x.strip() for x in item.split(":", 1))
+            if v.lower() == "true":
+                result[k] = True
+            elif v.lower() == "false":
+                result[k] = False
+            elif v.isnumeric(): 
+                result[k] = int(v)
+            else:
+                result[k] = v
         else:
             # shorthand → true
             result[item] = True
