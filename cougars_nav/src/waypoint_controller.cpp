@@ -8,7 +8,7 @@
 class WaypointController : public rclcpp::Node
 {
 public:
-    WaypointManager() : Node("waypoint_follower") {
+    WaypointController() : Node("waypoint_follower") {
     }
 };
 
