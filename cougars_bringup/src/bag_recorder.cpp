@@ -58,11 +58,16 @@ public:
         system_control_sub_ = this->create_subscription<cougars_interfaces::msg::SystemControl>(
             "system/status", 1, std::bind(&MultiTopicBagRecorder::system_callback, this, _1));
 
+        const std::string home = getenv("HOME") ? std::string(getenv("HOME")) : std::string("/home/frostlab");
+
         this->declare_parameter<bool>("sensors", true);
         this->declare_parameter<bool>("system", true);
         this->declare_parameter<bool>("processed", true);
         this->declare_parameter<bool>("controls", true);
-        this->declare_parameter<std::string>("mission_folder_path", "");
+        this->declare_parameter<std::string>("bag_dir", home + "/bag/");
+        this->declare_parameter<std::string>("mission_file_path", "");
+        this->declare_parameter<std::string>("vehicle_params_file", home + "/config/agent/vehicle_params.yaml");
+        this->declare_parameter<std::string>("fleet_params_file", home + "/config/fleet/fleet_params.yaml");
 
         bool sensors, system, processed, controls;
         this->get_parameter("sensors", sensors);
@@ -150,23 +155,17 @@ private:
         if (msg->start.data && msg->rosbag_flag.data) {
             std::string bag_folder = get_bag_filename(msg->rosbag_prefix);
 
-            writer_->open(bag_folder);  
+            writer_->open(bag_folder);
             write_flag_ = true;
 
-            // Retrieve the mission folder path from parameter
-            std::string mission_folder_src;
-            if (this->get_parameter("mission_folder_path", mission_folder_src) && !mission_folder_src.empty()) {
-                std::string mission_folder_dst = bag_folder + "/mission";
-                try {
-                    // Copy the mission folder to the bag folder
-                    std::filesystem::copy(mission_folder_src, mission_folder_dst, std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
-                    RCLCPP_INFO(this->get_logger(), "Mission folder copied to: %s", mission_folder_dst.c_str());
-                } catch (std::filesystem::filesystem_error& e) {
-                    RCLCPP_WARN(this->get_logger(), "Failed to copy mission folder: %s", e.what());
-                }
-            } else {
-                RCLCPP_WARN(this->get_logger(), "mission_folder_path parameter is not set or empty");
-            }
+            std::string mission_file, vehicle_params, fleet_params;
+            this->get_parameter("mission_file_path", mission_file);
+            this->get_parameter("vehicle_params_file", vehicle_params);
+            this->get_parameter("fleet_params_file", fleet_params);
+
+            copy_file_to_bag(mission_file, bag_folder, "mission file");
+            copy_file_to_bag(vehicle_params, bag_folder, "vehicle params");
+            copy_file_to_bag(fleet_params, bag_folder, "fleet params");
 
         } else {
             write_flag_ = false;
@@ -174,12 +173,27 @@ private:
         }
     }
 
+    void copy_file_to_bag(const std::string& src, const std::string& bag_folder, const std::string& label)
+    {
+        if (src.empty()) {
+            RCLCPP_WARN(this->get_logger(), "%s path is not set or empty", label.c_str());
+            return;
+        }
+        try {
+            std::filesystem::path dst = std::filesystem::path(bag_folder) / std::filesystem::path(src).filename();
+            std::filesystem::copy_file(src, dst, std::filesystem::copy_options::overwrite_existing);
+            RCLCPP_INFO(this->get_logger(), "Copied %s to: %s", label.c_str(), dst.c_str());
+        } catch (std::filesystem::filesystem_error& e) {
+            RCLCPP_WARN(this->get_logger(), "Failed to copy %s: %s", label.c_str(), e.what());
+        }
+    }
+
     std::string get_bag_filename(const std::string& prefix = "rosbag")
     {
+        std::string bag_dir;
+        this->get_parameter("bag_dir", bag_dir);
         auto now = std::chrono::system_clock::now();
         auto now_c = std::chrono::system_clock::to_time_t(now);
-        // TODO parameterize this bag dir
-        std::string bag_dir = "/home/frostlab/bag/";
         std::stringstream ss;
         ss << bag_dir << prefix << "_" << std::put_time(std::localtime(&now_c), "%Y%m%d_%H%M%S");
         return ss.str();
