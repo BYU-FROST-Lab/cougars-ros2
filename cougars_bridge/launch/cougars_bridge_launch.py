@@ -28,12 +28,12 @@ def generate_launch_description():
     )
     param_file_launch_arg = DeclareLaunchArgument(
         'param_file',
-        default_value="/home/frostlab/config/vehicle_config.yaml",
+        default_value="/home/frostlab/config/agent/vehicle_config.yaml",
         description='Path to the vehicle parameter file'
     )
     fleet_param_launch_arg = DeclareLaunchArgument(
         'fleet_param',
-        default_value="/home/frostlab/config/deploy_tmp/fleet_params.yaml",
+        default_value="/home/frostlab/config/fleet/fleet_params.yaml",
         description='Path to the fleet parameter file'
     )
 

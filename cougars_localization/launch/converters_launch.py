@@ -10,8 +10,8 @@ def generate_launch_description():
     '''
     Launches the sensor nodes for the vehicle.
     '''
-    param_file = '/home/frostlab/config/deploy_tmp/vehicle_params.yaml'
-    fleet_param = '/home/frostlab/config/deploy_tmp/fleet_params.yaml'
+    param_file = '/home/frostlab/config/agent/vehicle_params.yaml'
+    fleet_param = '/home/frostlab/config/fleet/fleet_params.yaml'
     GPS = "false"  # Default to 'false'
     namespace = 'coug0'
 

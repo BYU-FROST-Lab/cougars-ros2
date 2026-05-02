@@ -94,12 +94,12 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'param_file',
-            default_value='/home/frostlab/config/deploy_tmp/vehicle_params.yaml',
+            default_value='/home/frostlab/config/agent/vehicle_params.yaml',
             description='Path to the vehicle parameter file'
         ),
         DeclareLaunchArgument(
             'fleet_param',
-            default_value='/home/frostlab/config/deploy_tmp/fleet_params.yaml',
+            default_value='/home/frostlab/config/fleet/fleet_params.yaml',
             description='Path to the fleet parameter file'
         ),
         DeclareLaunchArgument(

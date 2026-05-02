@@ -23,8 +23,8 @@ def generate_launch_description():
     '''
 
     # default parameter file paths
-    param_file = '/home/frostlab/config/deploy_tmp/vehicle_params.yaml'
-    fleet_param = '/home/frostlab/config/deploy_tmp/fleet_params.yaml'
+    param_file = '/home/frostlab/config/agent/vehicle_params.yaml'
+    fleet_param = '/home/frostlab/config/fleet/fleet_params.yaml'
     # Get the directory of the launch files
     control_package_dir = os.path.join(
         get_package_share_directory('cougars_control'), 'launch')
