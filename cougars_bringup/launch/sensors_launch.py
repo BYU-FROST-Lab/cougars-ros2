@@ -4,6 +4,7 @@ import launch_ros.actions
 import launch_ros.descriptions
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
+from launch.conditions import IfCondition
 
 #######################################
 # 
@@ -32,18 +33,36 @@ def generate_launch_description():
         description='Path to the fleet parameter file'
     )
 
+    use_dvl_launch_arg = DeclareLaunchArgument(
+        'use_dvl',
+        default_value='true',
+        description='Launch DVL sensor and manager nodes'
+    )
+    use_gps_launch_arg = DeclareLaunchArgument(
+        'use_gps',
+        default_value='true',
+        description='Launch GPS nodes'
+    )
+    use_acoustics_launch_arg = DeclareLaunchArgument(
+        'acoms_on',
+        default_value='true',
+        description='Launch Seatrac acoustic modem node'
+    )
+
     # Declare launch nodes
     dvl_node = launch_ros.actions.Node(
-        package='dvl_a50', 
-        executable='dvl_a50_sensor', 
+        package='dvl_a50',
+        executable='dvl_a50_sensor',
         parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
         namespace=LaunchConfiguration('namespace'),
+        condition=IfCondition(LaunchConfiguration('use_dvl')),
     )
     dvl_manager = launch_ros.actions.Node(
         package='cougars_bridge',
         executable='dvl_manager.py',
         parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
         namespace=LaunchConfiguration('namespace'),
+        condition=IfCondition(LaunchConfiguration('use_dvl')),
     )
 
     seatrac_node = launch_ros.actions.Node(
@@ -52,6 +71,7 @@ def generate_launch_description():
         parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
         namespace=LaunchConfiguration('namespace'),
         output='log',
+        condition=IfCondition(LaunchConfiguration('acoms_on')),
     )
 
     gps_node_container = launch_ros.actions.ComposableNodeContainer(
@@ -85,6 +105,7 @@ def generate_launch_description():
         ],
         output='log',
         arguments=['--ros-args', '--log-level', 'WARN'],
+        condition=IfCondition(LaunchConfiguration('use_gps')),
     )
 
     launch_actions = [
@@ -92,6 +113,9 @@ def generate_launch_description():
         namespace_launch_arg,
         param_file_launch_arg,
         fleet_param_launch_arg,
+        use_dvl_launch_arg,
+        use_gps_launch_arg,
+        use_acoustics_launch_arg,
 
         # launch nodes
         dvl_node,

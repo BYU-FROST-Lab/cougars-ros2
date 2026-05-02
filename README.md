@@ -62,6 +62,9 @@ ros2 launch cougars_bringup persistant_launch.py \
 | `manual_mission` | `true` | cougars_control | When `true`, launches `manual_mission.py` in place of the waypoint follower |
 | `acoustic_pinger` | `false` | cougars_coms | When `true`, launches the vehicle acoustic pinger (sends acoustic messages on repeat) |
 | `debug` | `false` | cougars_coms | When `true`, enables debug logging for the RF bridge |
+| `use_dvl` | `true` | cougars_bringup | When `false`, disables the DVL sensor and manager nodes |
+| `use_gps` | `true` | cougars_bringup | When `false`, disables the GPS nodes |
+| `acoms_on` | `true` | cougars_bringup | When `false`, disables the Seatrac acoustic modem node |
 
 
 ---
