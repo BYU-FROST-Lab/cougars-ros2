@@ -57,6 +57,7 @@ add_executable(waypoint_controller src/waypoint_controller.cpp)
 ament_target_dependencies(waypoint_controller
   rclcpp
   geographic_msgs
+  cougars_interfaces
 )
 
 

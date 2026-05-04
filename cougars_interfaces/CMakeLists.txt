@@ -28,6 +28,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/EmergencyStop.srv"
   "msg/ControlDebug.msg"
   "msg/ControlsDebug.msg"
+  "msg/ControlCommand.msg"
   "msg/SystemControl.msg"
   "msg/FleetControl.msg"
   "msg/SystemStatus.msg"
