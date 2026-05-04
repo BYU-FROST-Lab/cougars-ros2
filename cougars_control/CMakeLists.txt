@@ -22,6 +22,7 @@ find_package(cougars_interfaces REQUIRED)
 find_package(seatrac_interfaces REQUIRED)
 find_package(dvl_msgs REQUIRED)
 find_package(gps_msgs REQUIRED)
+find_package(geographic_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 # find_package(robot_localization REQUIRED) #add if using the EKF
 find_package(tf2_ros REQUIRED)
@@ -36,7 +37,7 @@ add_executable(coug_kinematics src/coug_kinematics.cpp)
 ament_target_dependencies(coug_kinematics rclcpp std_msgs cougars_interfaces std_srvs)
 
 add_executable(emergency_protocols src/emergency_protocols.cpp)
-ament_target_dependencies(emergency_protocols rclcpp std_msgs gps_msgs dvl_msgs cougars_interfaces nav_msgs seatrac_interfaces geometry_msgs std_srvs sensor_msgs)
+ament_target_dependencies(emergency_protocols rclcpp std_msgs gps_msgs dvl_msgs cougars_interfaces nav_msgs seatrac_interfaces geometry_msgs std_srvs sensor_msgs geographic_msgs)
 
 add_executable(mc_serial_node src/mc_serial_node.cpp)
 ament_target_dependencies(mc_serial_node rclcpp std_msgs cougars_interfaces sensor_msgs)

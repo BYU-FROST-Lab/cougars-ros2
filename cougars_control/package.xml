@@ -27,6 +27,7 @@
   <exec_depend>seatrac_interfaces</exec_depend>
   <exec_depend>dvl_msgs</exec_depend>
   <exec_depend>gps_msgs</exec_depend>
+  <exec_depend>geographic_msgs</exec_depend>
   <exec_depend>ros2launch</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
