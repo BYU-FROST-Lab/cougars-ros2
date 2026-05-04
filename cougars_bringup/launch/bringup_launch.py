@@ -34,6 +34,26 @@ def generate_launch_description():
     )
 
   ### Launch Nodes
+    mission_publisher = launch_ros.actions.Node(
+        package='cougars_bringup',
+        executable='mission_publisher.py',
+        name='mission_publisher',
+        parameters=[ 
+            {'namespace': LaunchConfiguration('namespace')},
+            LaunchConfiguration('param_file'), 
+            LaunchConfiguration('fleet_param')
+        ],
+        namespace=LaunchConfiguration('namespace'),
+        output='log',
+    )
+    origin_publisher = launch_ros.actions.Node(
+        package='cougars_bringup',
+        executable='origin_publisher.py',
+        name='origin_publisher',
+        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
+        namespace=LaunchConfiguration('namespace'),
+        output='log',
+    )
     bag_recorder = launch_ros.actions.Node(
         package='cougars_bringup',
         executable='bag_recorder',
@@ -44,8 +64,7 @@ def generate_launch_description():
     )
     cpu_monitor = launch_ros.actions.Node(
         package='diagnostic_common_diagnostics',
-        executable='cpu_monitor.py',
-        # parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')], 
+        executable='cpu_monitor.py', 
         namespace=LaunchConfiguration('namespace'),
         output='log',
         remappings=[('/diagnostics', 'diagnostics')],   # remap to a relative topic that can be namespaced
@@ -53,7 +72,6 @@ def generate_launch_description():
     ram_monitor = launch_ros.actions.Node(
         package='diagnostic_common_diagnostics',
         executable='ram_monitor.py',
-        # parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')], 
         namespace=LaunchConfiguration('namespace'),
         remappings=[('/diagnostics', 'diagnostics')],    # remap to a relative topic that can be namespaced
         output='log',
@@ -66,6 +84,8 @@ def generate_launch_description():
         fleet_param_launch_arg,
 
         # launch nodes
+        mission_publisher,
+        origin_publisher,
         bag_recorder,
         cpu_monitor,
         ram_monitor

@@ -80,7 +80,7 @@ def launch_setup(context, *args, **kwargs):
 
         launch.actions.IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(bringup_dir, "recorder_diagnostics_launch.py")),
+                os.path.join(bringup_dir, "bringup_launch.py")),
             launch_arguments=launch_args),
     ]
 
