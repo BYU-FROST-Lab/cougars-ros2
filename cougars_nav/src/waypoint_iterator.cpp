@@ -7,22 +7,48 @@
 #include "cougars_interfaces/msg/waypoint_feedback.hpp"
 #include "cougars_interfaces/msg/system_control.hpp"
 
-class MissionManager : public rclcpp::Node
+/*
+This node takes a mission, or a list of waypoints, and iteratively publishes them to the waypoint manager.
+It also listens for feedback on the current waypoint and sends mission feedback accordingly.
+The node starts publishing waypoints when it receives a startup message with start.data == true.
+It tracks which waypoints have been completed or skipped and includes that information in the mission feedback messages.
+
+Publishers:
+- "waypoint" (geographic_msgs::msg::WayPoint): Publishes the current waypoint to the waypoint manager.
+- "mission_feedback" (cougars_interfaces::msg::MissionFeedback): Publishes feedback on the mission progress, including
+                    which waypoints have been completed, skipped, and are remaining.
+
+Subscribers:
+- "mission" (geographic_msgs::msg::RouteNetwork): Subscribes to the mission, which contains a list of waypoints and their properties.
+- "waypoint_feedback" (cougars_interfaces::msg::WaypointFeedback): Subscribes to feedback on the current waypoint, which
+                    indicates whether the waypoint was arrived at, skipped, or if there was an error.
+- "startup" (cougars_interfaces::msg::SystemControl): Subscribes to startup messages to know when to start the mission. 
+                    When a startup message with start.data == true is received, the node begins
+                    
+Variables:
+- waypoint_list (std::vector<geographic_msgs::msg::WayPoint>): Stores the list of waypoints from the mission.
+- current_waypoint_index (size_t): Tracks the index of the current waypoint being processed.
+- mission_state (uint8_t): Tracks the current state of the mission (idle, running, complete, aborted).
+- start_time (rclcpp::Time): Records the time when the mission was started to calculate elapsed time for feedback.
+- skipped_waypoint_indices (std::set<size_t>): Tracks which waypoints were skipped to include that information in the mission feedback.
+*/
+
+class WaypointIterator : public rclcpp::Node
 {
 public:
-    MissionManager() : Node("waypoint_follower") {
+    WaypointIterator() : Node("waypoint_follower") {
 
         // subscribe to mission with message type route network
         this->mission_sub_ = this->create_subscription<geographic_msgs::msg::RouteNetwork>(
-            "mission", 10, std::bind(&MissionManager::missionCallback, this, std::placeholders::_1));
+            "mission", 10, std::bind(&WaypointIterator::missionCallback, this, std::placeholders::_1));
 
         // subscription to mission feedback, used to send updates on mission progress
         this->waypoint_feedback_sub_ = this->create_subscription<cougars_interfaces::msg::WaypointFeedback>(
-            "waypoint_feedback", 10, std::bind(&MissionManager::waypointFeedbackCallback, this, std::placeholders::_1));
+            "waypoint_feedback", 10, std::bind(&WaypointIterator::waypointFeedbackCallback, this, std::placeholders::_1));
 
         // subscription to startup
         this->startup_sub_ = this->create_subscription<cougars_interfaces::msg::SystemControl>(
-            "startup", 10, std::bind(&MissionManager::startupCallback, this, std::placeholders::_1));
+            "startup", 10, std::bind(&WaypointIterator::startupCallback, this, std::placeholders::_1));
 
         // publishes waypoints to the waypoint manager
         this->waypoint_pub_ = this->create_publisher<geographic_msgs::msg::WayPoint>("waypoint", 10);
@@ -40,6 +66,8 @@ public:
         // Handle mission message
         std::unordered_map<std::string, std::string> route_props_map = getKeyValue(msg->props);
         waypoint_list.clear();
+
+        // Populates any missing properties in the waypoints with the mission-level properties, so that the waypoints have all necessary information for the waypoint manager
         for (geographic_msgs::msg::WayPoint& wp : msg->points) {
             std::unordered_map<std::string, std::string> props_map = getKeyValue(wp.props);
             if (props_map.find("speed") == props_map.end()){
@@ -73,19 +101,23 @@ public:
             return;
         }
         this->current_wp_feedback = *msg;
+        // If state is arrived or skipped, move on to the next waypoint and pulish it
         if (msg->state == cougars_interfaces::msg::WaypointFeedback::STATE_ARRIVED || msg->state == cougars_interfaces::msg::WaypointFeedback::STATE_SKIPPED) {
-                if (msg->state == cougars_interfaces::msg::WaypointFeedback::STATE_SKIPPED) {
-                    skipped_waypoint_indices.insert(this->current_waypoint_index);
-                }
-               this->current_waypoint_index++;
-               if (this->current_waypoint_index >= this->waypoint_list.size()) {
-                   RCLCPP_INFO(this->get_logger(), "Mission completed! All waypoints have been reached or skipped.");
-                   this->mission_state = cougars_interfaces::msg::MissionFeedback::STATE_COMPLETE;
-                   publishMissionFeedback();
-                   return;
-               }
-               this->publishCurrentWaypoint();
-               RCLCPP_INFO(this->get_logger(), "Waypoint %ld completed. Moving to waypoint %ld.", this->current_waypoint_index - 1, this->current_waypoint_index); 
+            // If waypoint got skipped, store in skipped_waypoint_indeces  
+            if (msg->state == cougars_interfaces::msg::WaypointFeedback::STATE_SKIPPED) {
+                skipped_waypoint_indices.insert(this->current_waypoint_index);
+            }
+            // Move to the next waypoint
+            this->current_waypoint_index++;
+            // If complete change mission state and publish feedback, otherwise publish the next waypoint
+            if (this->current_waypoint_index >= this->waypoint_list.size()) {
+                RCLCPP_INFO(this->get_logger(), "Mission completed! All waypoints have been reached or skipped.");
+                this->mission_state = cougars_interfaces::msg::MissionFeedback::STATE_COMPLETE;
+                publishMissionFeedback();
+                return;
+            }
+            this->publishCurrentWaypoint();
+            RCLCPP_INFO(this->get_logger(), "Waypoint %ld completed. Moving to waypoint %ld.", this->current_waypoint_index - 1, this->current_waypoint_index); 
         }
         publishMissionFeedback();
     }
@@ -109,13 +141,15 @@ public:
     }
 
     void publishMissionFeedback() {
+        // creates mission feedack message
         cougars_interfaces::msg::MissionFeedback feedback_msg;
         feedback_msg.state = this->mission_state;
         feedback_msg.waypoints_completed = this->current_waypoint_index;
         feedback_msg.waypoints_total = this->waypoint_list.size();
         feedback_msg.elapsed_time = (this->now() - this->start_time).seconds();
         feedback_msg.current = this->current_wp_feedback;
-        for (size_t i = 0; i <this->current_waypoint_index; i++) {
+        // Finds the ID's for each waypoint and adds them to the appropriate list completed, skipped, or are remaining
+        for (size_t i = 0; i < this->current_waypoint_index; i++) {
             if (skipped_waypoint_indices.find(i) != skipped_waypoint_indices.end()) {
                 feedback_msg.skipped.push_back(waypoint_list[i].id);
             } else {
@@ -137,6 +171,7 @@ public:
         }
     }
 
+    // used for parsing the properties in the mission and waypoints, returned un an unordered map for easy access
     template<typename Container>
     std::unordered_map<std::string, std::string> getKeyValue(const Container &props) {
             std::unordered_map<std::string, std::string> key_value_map;
@@ -171,7 +206,7 @@ private:
 int main(int argc, char * argv[])
 {
     rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<MissionManager>()); 
+    rclcpp::spin(std::make_shared<WaypointIterator>()); 
     rclcpp::shutdown();
     return 0;
 }
