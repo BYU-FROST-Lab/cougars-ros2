@@ -9,10 +9,7 @@
 #include "pid.cpp"
 #include "actuator.cpp"
 // #include "pid_int2.cpp"
-#include "dvl_msgs/msg/dvl.hpp"
-#include "cougars_interfaces/msg/desired_depth.hpp"
-#include "cougars_interfaces/msg/desired_heading.hpp"
-#include "cougars_interfaces/msg/desired_speed.hpp"
+#include "cougars_interfaces/msg/control_command.hpp"
 #include "cougars_interfaces/msg/u_command.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 #include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
@@ -40,9 +37,7 @@ auto qos = rclcpp::QoS(
  * - init_controls (std_srvs/srv/SetBool) 
  *
  * Subscribes:
- * - desired_depth (cougars_interfaces/msg/DesiredDepth)
- * - desired_heading (cougars_interfaces/msg/DesiredHeading)
- * - desired_speed (cougars_interfaces/msg/DesiredSpeed)
+ * - control_command (cougars_interfaces/msg/ControlCommand)
  * - depth_data (geometry_msgs/msg/PoseWithCovarianceStamped)
  * - modem_status (seatrac_interfaces/msg/ModemStatus)
  * 
@@ -190,9 +185,6 @@ public:
     this->declare_parameter("wn_d_theta", 0.25);
     this->declare_parameter("outer_loop_threshold", 2.5);
     this->declare_parameter("saturation_offset", 1.7);
-    // this->declare_parameter("depth_from_bottom", false);
-    // this->dfb = this->get_parameter("depth_from_bottom").as_bool();
-
     update_parameters();
     /**
      * @brief Control command publisher.
@@ -224,37 +216,16 @@ public:
             std::bind(&CougControls::handle_service, this, std::placeholders::_1, std::placeholders::_2));
 
     /**
-     * @brief Desired depth subscriber.
+     * @brief Control command subscriber.
      *
-     * This subscriber subscribes to the "desired_depth" topic. It uses the
-     * DesiredDepth message type. 
+     * This subscriber subscribes to the "control_command" topic. It uses the
+     * ControlCommand message type. Heading is in radians (ENU, 0=East),
+     * depth is in meters positive down, speed is in m/s.
      */
-    desired_depth_subscription_ =
-        this->create_subscription<cougars_interfaces::msg::DesiredDepth>(
-            "desired_depth", 10,
-            std::bind(&CougControls::desired_depth_callback, this, _1));
-
-    /**
-     * @brief Desired heading subscriber.
-     *
-     * This subscriber subscribes to the "desired_heading" topic. It uses the
-     * DesiredHeading message type. Expects the value to be in degrees from -180 to 180. ENU coordinate frame (0 being true east) 
-     */
-    desired_heading_subscription_ =
-        this->create_subscription<cougars_interfaces::msg::DesiredHeading>(
-            "desired_heading", 10,
-            std::bind(&CougControls::desired_heading_callback, this, _1));
-
-    /**
-     * @brief Desired speed subscriber.
-     *
-     * This subscriber subscribes to the "desired_speed" topic. It uses the
-     * DesiredSpeed message type. Expected value from 0 to 100 (Non-dimensional)
-     */
-    desired_speed_subscription_ =
-        this->create_subscription<cougars_interfaces::msg::DesiredSpeed>(
-            "desired_speed", 10,
-            std::bind(&CougControls::desired_speed_callback, this, _1));
+    control_command_subscription_ =
+        this->create_subscription<cougars_interfaces::msg::ControlCommand>(
+            "control_command", 10,
+            std::bind(&CougControls::control_command_callback, this, _1));
 
     /**
      * @brief Depth subscriber.
@@ -266,16 +237,6 @@ public:
         geometry_msgs::msg::PoseWithCovarianceStamped>(
         "depth_data", 10,
         std::bind(&CougControls::actual_depth_callback, this, _1));
-
-    /**
-     * @brief Altitude subscriber.
-     *
-     * This subscriber subscribes to the "dvl/data" topic. It uses the
-     *  message type. Expects data in ENU with the z value being more negative with increasing depth
-     */
-    subscriber_dvl_data = this->create_subscription<dvl_msgs::msg::DVL>(
-        "dvl/data", qos,
-        std::bind(&CougControls::dvl_data_callback, this, _1));
 
     /**
      * @brief Yaw and Pitch subscriber.
@@ -406,65 +367,35 @@ private:
 
 
   /**
-   * @brief Callback function for the desired_depth subscription.
+   * @brief Callback function for the control_command subscription.
    *
-   * This method sets the desired depth value to the value received from the
-   * desired depth message.
+   * Updates desired depth, heading, and speed from a single ControlCommand
+   * message. Heading is converted from radians (ENU) to degrees for internal
+   * use. Only fields marked valid are updated.
    *
-   * @param depth_msg The DesiredDepth message recieved from the desired_depth
-   * topic.
+   * @param msg The ControlCommand message received from the control_command topic.
    */
-  void
-  desired_depth_callback(const cougars_interfaces::msg::DesiredDepth &depth_msg) {
-    constexpr double EPSILON = 1e-6; // Small tolerance value
-    // KEEP THIS OR BAD THINGS WILL HAPPEN - BRADEN MEYERS
-    // floating point precicision issue bug fix
-
-    if (std::abs(depth_msg.desired_depth - this->desired_depth) < EPSILON) {
-        // RCLCPP_INFO(this->get_logger(), "not a new desired depth");
-        return;
+  void control_command_callback(
+      const cougars_interfaces::msg::ControlCommand &msg) {
+    if (msg.depth_valid) {
+      constexpr double EPSILON = 1e-6;
+      // KEEP THIS OR BAD THINGS WILL HAPPEN - BRADEN MEYERS
+      // floating point precision issue bug fix
+      if (std::abs(msg.depth - this->desired_depth) >= EPSILON) {
+        RCLCPP_INFO(this->get_logger(), "New Depth Desired: %f, Old desired depth %f", msg.depth, this->desired_depth);
+        this->desired_depth = msg.depth;
+        this->depth_ref = this->actual_depth;
+      }
     }
-    RCLCPP_INFO(this->get_logger(), "New Depth Desired: %f, Old desired depth %f", depth_msg.desired_depth, this->desired_depth);
-    this->desired_depth = depth_msg.desired_depth;
-    this->dfb = depth_msg.dfb;
 
-    // TODO reset integrator term??
-    // TODO in the message type specify the dfb or not
-    if (this->dfb){
-      this->depth_ref = this->altitude;
+    if (msg.heading_valid) {
+      // ControlCommand heading is in radians (ENU); convert to degrees for internal use
+      this->desired_heading = msg.heading * (180.0 / M_PI);
     }
-    else{
-      // When a new desired depth sent update the depth_ref to the actual depth
-      this->depth_ref = this->actual_depth;
+
+    if (msg.speed_valid) {
+      this->desired_speed = msg.speed;
     }
-  }
-
-  /**
-   * @brief Callback function for the desired_heading subscription.
-   *
-   * This method sets the desired heading value to the value received from the
-   * desired heading message. ENU yaw value -180 to 180
-   *
-   * @param heading_msg The DesiredHeading message recieved from the
-   * desired_heading topic.
-   */
-  void desired_heading_callback(
-      const cougars_interfaces::msg::DesiredHeading &heading_msg) {
-    this->desired_heading = heading_msg.desired_heading;
-  }
-
-  /**
-   * @brief Callback function for the desired_speed subscription.
-   *
-   * This method sets the desired speed value to the value received from the
-   * desired speed message.
-   *
-   * @param speed_msg The DesiredSpeed message recieved from the desired_speed
-   * topic. The 
-   */
-  void
-  desired_speed_callback(const cougars_interfaces::msg::DesiredSpeed &speed_msg) {
-    this->desired_speed = speed_msg.desired_speed;
   }
 
   /**
@@ -480,11 +411,6 @@ private:
       const geometry_msgs::msg::PoseWithCovarianceStamped &depth_msg) {
     this->actual_depth = -depth_msg.pose.pose.position.z;
     //Negate the z value in ENU to get postive depth value
-  }
-
-  void dvl_data_callback(const dvl_msgs::msg::DVL::SharedPtr msg) {
-    this->altitude = msg->altitude;
-
   }
 
   /**
@@ -602,7 +528,7 @@ private:
     return yaw_err;
   }
   
-  int depth_autopilot(float depth, float depth_d, int altitude_hold=1){
+  int depth_autopilot(float depth, float depth_d){
     float surge = this->velocity[0];
     float surge_threshold = this->get_parameter("surge_threshold").as_double();
     float timer_period = this->get_parameter("timer_period").as_int() / 1000.0;
@@ -624,7 +550,7 @@ private:
     
     if (std::abs(depth_d - depth) > outer_loop_threshold) {
         // saturate theta_d
-        float theta_d = theta_max * std::copysign(1.0, depth_d - depth) * altitude_hold;
+        float theta_d = theta_max * std::copysign(1.0, depth_d - depth);
         this->theta_ref = std::exp(-timer_period * wn_d_theta) * this->theta_ref
                         + (1.0 - std::exp(-timer_period * wn_d_theta)) * theta_d;
 
@@ -632,7 +558,7 @@ private:
         std::cout <<  "Saturated Depth PID mode" << std::endl;
         myDepthPID.reset_int();
     } else {
-        this->theta_ref = myDepthPID.compute(this->depth_ref, depth, this->velocity[2]) * altitude_hold;
+        this->theta_ref = myDepthPID.compute(this->depth_ref, depth, this->velocity[2]);
     }
 
     int depth_pos = (int)myPitchPID.compute(this->theta_ref, this->actual_pitch, this->pitch_rate, this->velocity[0]);  
@@ -660,15 +586,8 @@ private:
 
       int depth_pos;
       if (this->init_flag) {
-        float depth_trackpoint;
-        if (dfb){
-          depth_trackpoint = this->altitude;
-          depth_pos = depth_autopilot(depth_trackpoint, this->desired_depth, -1);
-        }
-        else{
-          depth_trackpoint = this->actual_depth;
-          depth_pos = depth_autopilot(depth_trackpoint, this->desired_depth);
-        }
+        float depth_trackpoint = this->actual_depth;
+        depth_pos = depth_autopilot(depth_trackpoint, this->desired_depth);
           
         // Handling roll over when taking the error difference
         // given desired heading and actual heading from -180 to 180
@@ -737,19 +656,14 @@ private:
   rclcpp::TimerBase::SharedPtr controls_timer_;
   rclcpp::Publisher<cougars_interfaces::msg::UCommand>::SharedPtr
       u_command_publisher_;
-  rclcpp::Subscription<cougars_interfaces::msg::DesiredDepth>::SharedPtr
-      desired_depth_subscription_;
-  rclcpp::Subscription<cougars_interfaces::msg::DesiredHeading>::SharedPtr
-      desired_heading_subscription_;
-  rclcpp::Subscription<cougars_interfaces::msg::DesiredSpeed>::SharedPtr
-      desired_speed_subscription_;
+  rclcpp::Subscription<cougars_interfaces::msg::ControlCommand>::SharedPtr
+      control_command_subscription_;
   rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr
       actual_depth_subscription_;
   rclcpp::Subscription<geometry_msgs::msg::TwistWithCovarianceStamped>::SharedPtr
       actual_velocity_subscription_;
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr
       actual_orientation_subscription_;
-  rclcpp::Subscription<dvl_msgs::msg::DVL>::SharedPtr subscriber_dvl_data;
   rclcpp::Subscription<cougars_interfaces::msg::SystemControl>::SharedPtr system_control_sub_;
 
   rclcpp::Publisher<cougars_interfaces::msg::ControlsDebug>::SharedPtr debug_controls_pub_;
@@ -783,8 +697,6 @@ private:
   float yaw_rate;
   float velocity[3];
 
-  bool dfb;
-  float altitude;
 };
 
 int main(int argc, char *argv[]) {

@@ -27,9 +27,7 @@
 // Frost interfaces
 #include <cougars_interfaces/msg/u_command.hpp>
 #include <cougars_interfaces/msg/controls_debug.hpp>
-#include <cougars_interfaces/msg/desired_depth.hpp>
-#include <cougars_interfaces/msg/desired_heading.hpp>
-#include <cougars_interfaces/msg/desired_speed.hpp>
+#include <cougars_interfaces/msg/control_command.hpp>
 #include <cougars_interfaces/msg/system_control.hpp>
 #include <cougars_interfaces/msg/system_status.hpp>
 
@@ -114,9 +112,7 @@ public:
             subscribe_to_topic<cougars_interfaces::msg::UCommand>("kinematics/command");
             subscribe_to_topic<cougars_interfaces::msg::UCommand>("controls/command");
             subscribe_to_topic<cougars_interfaces::msg::ControlsDebug>("controls/debug");
-            subscribe_to_topic<cougars_interfaces::msg::DesiredDepth>("desired_depth");
-            subscribe_to_topic<cougars_interfaces::msg::DesiredHeading>("desired_heading");
-            subscribe_to_topic<cougars_interfaces::msg::DesiredSpeed>("desired_speed");
+            subscribe_to_topic<cougars_interfaces::msg::ControlCommand>("control_command");
         }
 
     }

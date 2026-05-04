@@ -22,7 +22,6 @@ find_package(cougars_interfaces REQUIRED)
 find_package(seatrac_interfaces REQUIRED)
 find_package(dvl_msgs REQUIRED)
 find_package(gps_msgs REQUIRED)
-# find_package(MOOS 10 REQUIRED)
 find_package(Eigen3 REQUIRED)
 # find_package(robot_localization REQUIRED) #add if using the EKF
 find_package(tf2_ros REQUIRED)
@@ -49,9 +48,6 @@ target_link_libraries(mc_serial_node
 # Link libraries
 target_link_libraries(coug_controls)
 target_link_libraries(coug_kinematics)
-# target_link_libraries(moos_bridge)
-# target_link_libraries(moos_bridge_sim)
-# target_link_libraries(moos_bridge_gps)
 target_link_libraries(emergency_protocols)
 
 # Install executables

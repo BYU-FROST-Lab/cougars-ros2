@@ -18,9 +18,6 @@ find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/BatteryStatus.msg"
-  "msg/DesiredDepth.msg"
-  "msg/DesiredHeading.msg"
-  "msg/DesiredSpeed.msg"
   "msg/LeakStatus.msg"
   "msg/LocalizationData.msg"
   "msg/MissionFeedback.msg"
