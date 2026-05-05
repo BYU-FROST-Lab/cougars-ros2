@@ -58,6 +58,8 @@ ament_target_dependencies(waypoint_controller
   rclcpp
   geographic_msgs
   cougars_interfaces
+  geometry_msgs
+  tf2_ros
 )
 
 
