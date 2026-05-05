@@ -31,7 +31,7 @@ find_package(tf2_geometry_msgs REQUIRED) # Add this to be safe, as you use it di
 include_directories(include/${PROJECT_NAME})
 
 add_executable(coug_controls src/coug_controls.cpp src/pid.cpp)
-ament_target_dependencies(coug_controls rclcpp std_msgs cougars_interfaces sensor_msgs geometry_msgs std_srvs dvl_msgs)
+ament_target_dependencies(coug_controls rclcpp std_msgs cougars_interfaces sensor_msgs geometry_msgs nav_msgs dvl_msgs)
 
 add_executable(coug_kinematics src/coug_kinematics.cpp)
 ament_target_dependencies(coug_kinematics rclcpp std_msgs cougars_interfaces std_srvs)

@@ -25,9 +25,9 @@
 #include <seatrac_interfaces/msg/modem_cmd_update.hpp>
 
 // Frost interfaces
-#include <cougars_interfaces/msg/u_command.hpp>
+#include <cougars_interfaces/msg/actuator_command.hpp>
 #include <cougars_interfaces/msg/controls_debug.hpp>
-#include <cougars_interfaces/msg/control_command.hpp>
+#include <cougars_interfaces/msg/vehicle_setpoint.hpp>
 #include <cougars_interfaces/msg/system_control.hpp>
 #include <cougars_interfaces/msg/system_status.hpp>
 
@@ -109,10 +109,10 @@ public:
         
         if (controls){
             // Mission and Controls
-            subscribe_to_topic<cougars_interfaces::msg::UCommand>("kinematics/command");
-            subscribe_to_topic<cougars_interfaces::msg::UCommand>("controls/command");
-            subscribe_to_topic<cougars_interfaces::msg::ControlsDebug>("controls/debug");
-            subscribe_to_topic<cougars_interfaces::msg::ControlCommand>("control_command");
+            subscribe_to_topic<cougars_interfaces::msg::ActuatorCommand>("control/actuator_cmd");
+            subscribe_to_topic<cougars_interfaces::msg::ActuatorCommand>("control/u_cmd");
+            subscribe_to_topic<cougars_interfaces::msg::ControlsDebug>("control/debug");
+            subscribe_to_topic<cougars_interfaces::msg::VehicleSetpoint>("control/setpoint");
         }
 
     }

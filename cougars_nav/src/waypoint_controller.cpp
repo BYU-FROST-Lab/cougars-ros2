@@ -4,7 +4,7 @@
 #include <cmath>
 #include <string>
 #include <unordered_map>
-#include "cougars_interfaces/msg/control_command.hpp"
+#include "cougars_interfaces/msg/vehicle_setpoint.hpp"
 #include "cougars_interfaces/msg/waypoint_feedback.hpp"
 #include "geographic_msgs/msg/way_point.hpp"
 #include "geographic_msgs/msg/geo_point.hpp"
@@ -25,7 +25,7 @@ Depth is derived from position.altitude (negated: altitude is positive-up,
 depth is positive-down). Speed and slip radius come from waypoint props
 ("speed", "slip"), falling back to node parameters.
 
-Publishes ControlCommand on "control_command" whenever transiting, and
+Publishes VehicleSetpoint on "control/setpoint" whenever transiting, and
 WaypointFeedback on "waypoint_feedback" each control loop tick. Transitions
 to STATE_ARRIVED when within slip_radius, or STATE_SKIPPED on timeout.
 
@@ -35,7 +35,7 @@ Subscribes:
   - "state_estimate" (geometry_msgs/PoseWithCovarianceStamped) — current pose
 
 Publishes:
-  - "control_command"  (cougars_interfaces/ControlCommand)
+  - "control/setpoint"  (cougars_interfaces/VehicleSetpoint)
   - "waypoint_feedback" (cougars_interfaces/WaypointFeedback)
 
 Arrival logic:
@@ -82,8 +82,8 @@ public:
             "state_estimate", 10,
             std::bind(&WaypointController::state_estimate_callback, this, _1));
 
-        command_pub_ = this->create_publisher<cougars_interfaces::msg::ControlCommand>(
-            "control_command", 10);
+        command_pub_ = this->create_publisher<cougars_interfaces::msg::VehicleSetpoint>(
+            "control/setpoint", 10);
 
         feedback_pub_ = this->create_publisher<cougars_interfaces::msg::WaypointFeedback>(
             "waypoint_feedback", 10);
@@ -207,7 +207,7 @@ private:
             }
         }
 
-        auto cmd = cougars_interfaces::msg::ControlCommand();
+        auto cmd = cougars_interfaces::msg::VehicleSetpoint();
         cmd.header.stamp  = this->now();
         cmd.heading       = target_heading_rad;  // radians, ENU (0 = East)
         cmd.depth         = waypoint_target_depth_;
@@ -285,7 +285,7 @@ private:
     rclcpp::Subscription<geographic_msgs::msg::WayPoint>::SharedPtr                    waypoint_sub_;
     rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr     state_estimate_sub_;
 
-    rclcpp::Publisher<cougars_interfaces::msg::ControlCommand>::SharedPtr   command_pub_;
+    rclcpp::Publisher<cougars_interfaces::msg::VehicleSetpoint>::SharedPtr   command_pub_;
     rclcpp::Publisher<cougars_interfaces::msg::WaypointFeedback>::SharedPtr feedback_pub_;
 
     rclcpp::TimerBase::SharedPtr control_timer_;

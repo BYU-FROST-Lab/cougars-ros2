@@ -64,6 +64,7 @@ def generate_launch_description():
         parameters=[param_file, fleet_param],
         namespace=namespace,
         output='log',
+        condition=UnlessCondition(LaunchConfiguration('sim'))
     )
 
     # kinematics node converts control inputs to fin outputs
@@ -97,12 +98,20 @@ def generate_launch_description():
 
     # manual mission node — if manual_mission is true, replaces waypoint
     manual_mission_node = Node(
-        package='cougars_control',
+        package='cougars_nav',
         executable='manual_mission.py',
         parameters=[param_file, fleet_param],
         namespace=namespace,
         output='log',
         condition=IfCondition(LaunchConfiguration('manual_mission'))
+    )
+
+    setpoint_transformer_node = Node(
+        package='cougars_nav',
+        executable='setpoint_transformer.py',
+        name='setpoint_transformer',
+        namespace=namespace,
+        output='log',
     )
 
     launch_actions = [
@@ -121,7 +130,8 @@ def generate_launch_description():
         kinematics_node,
         controls_node,
         fins_manual_node,
-        manual_mission_node
+        manual_mission_node,
+        setpoint_transformer_node,
     ]
 
     return launch.LaunchDescription(launch_actions)

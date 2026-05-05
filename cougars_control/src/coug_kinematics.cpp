@@ -3,7 +3,7 @@
 #include <memory>
 #include <string>
 
-#include "cougars_interfaces/msg/u_command.hpp"
+#include "cougars_interfaces/msg/actuator_command.hpp"
 #include "cougars_interfaces/msg/system_control.hpp"
 #include "std_srvs/srv/set_bool.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -21,15 +21,15 @@ auto qos = rclcpp::QoS(
  * @author Nelson Durrant
  * @date September 2024
  *
- * This node subscribes to the "controls/command" topic and modifies the
+ * This node subscribes to the "control/u_cmd" topic and modifies the
  * commands to account for thruster trim and fin offsets. The modified commands
- * are then published to the "kinematics/command" topic.
+ * are then published to the "control/actuator_cmd" topic.
  *
  * Subscribes:
- * - controls/command (cougars_interfaces/msg/UCommand)
- * 
+ * - control/u_cmd (cougars_interfaces/msg/ActuatorCommand)
+ *
  * Publishes:
- * - kinematics/command (cougars_interfaces/msg/UCommand)
+ * - control/actuator_cmd (cougars_interfaces/msg/ActuatorCommand)
  */
 class CougKinematics : public rclcpp::Node {
 public:
@@ -122,7 +122,7 @@ public:
             std::bind(&CougKinematics::surface, this, std::placeholders::_1, std::placeholders::_2));
 
 
-    surface_command_ = cougars_interfaces::msg::UCommand();
+    surface_command_ = cougars_interfaces::msg::ActuatorCommand();
     surface_command_.fin[0] = 0 * this->get_parameter("fin_0_direction").as_int() + this->get_parameter("top_fin_offset").as_double();
     surface_command_.fin[1] = -30 * this->get_parameter("fin_1_direction").as_int() + this->get_parameter("right_fin_offset").as_double();
     surface_command_.fin[2] = 30 * this->get_parameter("fin_2_direction").as_int() + this->get_parameter("left_fin_offset").as_double() ;
@@ -141,22 +141,22 @@ public:
     /**
      * @brief Kinematics command publisher.
      *
-     * This publisher publishes the commands to the "kinematics/command" topic.
-     * It uses the UCommand message type.
+     * This publisher publishes the commands to the "control/actuator_cmd" topic.
+     * It uses the ActuatorCommand message type.
      */
     command_publisher_ =
-        this->create_publisher<cougars_interfaces::msg::UCommand>(
-            "kinematics/command", 10);
+        this->create_publisher<cougars_interfaces::msg::ActuatorCommand>(
+            "control/actuator_cmd", 10);
 
     /**
      * @brief Controls command subscriber.
      *
-     * This subscriber subscribes to the "controls/command" topic. It uses the
-     * UCommand message type.
+     * This subscriber subscribes to the "control/u_cmd" topic. It uses the
+     * ActuatorCommand message type.
      */
     command_subscription_ =
-        this->create_subscription<cougars_interfaces::msg::UCommand>(
-            "controls/command", 10,
+        this->create_subscription<cougars_interfaces::msg::ActuatorCommand>(
+            "control/u_cmd", 10,
             std::bind(&CougKinematics::command_callback, this, _1));
 
     system_control_sub_ = this->create_subscription<cougars_interfaces::msg::SystemControl>(
@@ -172,11 +172,11 @@ private:
    * It adds the declared offsets and trim ratio to the commands and publishes
    * the new modified commands.
    *
-   * @param msg The received UCommand message
+   * @param msg The received ActuatorCommand message
    */
-  void command_callback(const cougars_interfaces::msg::UCommand &msg) {
+  void command_callback(const cougars_interfaces::msg::ActuatorCommand &msg) {
 
-    auto command = cougars_interfaces::msg::UCommand();
+    auto command = cougars_interfaces::msg::ActuatorCommand();
     command.header.stamp = msg.header.stamp;
     
     if(!surface_override_){
@@ -259,13 +259,13 @@ private:
   bool arm_thruster_ = false;
   bool surface_override_ = false;
 
-  cougars_interfaces::msg::UCommand surface_command_;
+  cougars_interfaces::msg::ActuatorCommand surface_command_;
 
   // ROS objects
   rclcpp::TimerBase::SharedPtr backup_timer_;
-  rclcpp::Publisher<cougars_interfaces::msg::UCommand>::SharedPtr
+  rclcpp::Publisher<cougars_interfaces::msg::ActuatorCommand>::SharedPtr
       command_publisher_;
-  rclcpp::Subscription<cougars_interfaces::msg::UCommand>::SharedPtr
+  rclcpp::Subscription<cougars_interfaces::msg::ActuatorCommand>::SharedPtr
       command_subscription_;
   rclcpp::Subscription<cougars_interfaces::msg::SystemControl>::SharedPtr system_control_sub_;
 

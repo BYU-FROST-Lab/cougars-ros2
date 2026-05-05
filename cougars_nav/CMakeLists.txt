@@ -82,6 +82,7 @@ install(DIRECTORY
 # Install Python executables
 install(PROGRAMS
   scripts/manual_mission.py
+  scripts/setpoint_transformer.py
   # scripts/dummy_factor_starter.py
   scripts/fins_manual.py
   DESTINATION lib/${PROJECT_NAME}
