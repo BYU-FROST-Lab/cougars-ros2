@@ -73,12 +73,6 @@ install(TARGETS
 # Install Python modules
 # ament_python_install_package(${PROJECT_NAME})
 
-# Install mission configuration files
-install(DIRECTORY
-  waypoint_missions/ # Assuming your YAML files are in a 'waypoint_missions' subdir of cougars_control
-  DESTINATION share/${PROJECT_NAME}/waypoint_missions
-)
-
 # Install Python executables
 install(PROGRAMS
   scripts/manual_mission.py
@@ -88,10 +82,14 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-# Install mission configuration files
 install(DIRECTORY
-  waypoint_missions/ # Assuming your YAML files are in a 'waypoint_missions' subdir of cougars_control
+  waypoint_missions/
   DESTINATION share/${PROJECT_NAME}/waypoint_missions
+)
+
+install(DIRECTORY
+  config/
+  DESTINATION share/${PROJECT_NAME}/config
 )
 
 if(BUILD_TESTING)
