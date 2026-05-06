@@ -15,10 +15,10 @@ class SystemStatusPublisher(Node):
         super().__init__('system_status_publisher')
 
 
-        self.coug0_publisher_ = self.create_publisher(SystemControl, '/coug0/system/status', 1)
-        self.coug1_publisher_ = self.create_publisher(SystemControl, '/coug1/system/status', 1)
-        self.coug2_publisher_ = self.create_publisher(SystemControl, '/coug2/system/status', 1)
-        self.coug3_publisher_ = self.create_publisher(SystemControl, '/coug3/system/status', 1)
+        self.coug0_publisher_ = self.create_publisher(SystemControl, '/coug0/system/control', 1)
+        self.coug1_publisher_ = self.create_publisher(SystemControl, '/coug1/system/control', 1)
+        self.coug2_publisher_ = self.create_publisher(SystemControl, '/coug2/system/control', 1)
+        self.coug3_publisher_ = self.create_publisher(SystemControl, '/coug3/system/control', 1)
         self.get_logger().info("SystemStatusPublisher node started. Preparing message...")
 
         self.publish_user_input()

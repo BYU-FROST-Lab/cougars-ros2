@@ -160,7 +160,7 @@ public:
             std::bind(&CougKinematics::command_callback, this, _1));
 
     system_control_sub_ = this->create_subscription<cougars_interfaces::msg::SystemControl>(
-            "system/status", 1, std::bind(&CougKinematics::system_callback, this, _1));
+            "system/control", 1, std::bind(&CougKinematics::system_callback, this, _1));
   }
 
 private:

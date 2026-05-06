@@ -54,7 +54,7 @@ public:
 
 
         system_control_sub_ = this->create_subscription<cougars_interfaces::msg::SystemControl>(
-            "system/status", 1, std::bind(&MultiTopicBagRecorder::system_callback, this, _1));
+            "system/control", 1, std::bind(&MultiTopicBagRecorder::system_callback, this, _1));
 
         const std::string home = getenv("HOME") ? std::string(getenv("HOME")) : std::string("/home/frostlab");
 

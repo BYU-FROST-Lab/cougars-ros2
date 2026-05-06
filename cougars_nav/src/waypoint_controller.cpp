@@ -21,11 +21,12 @@ Navigates to waypoints published on the "waypoint" topic.
 
 Converts each waypoint's lat/lon to ENU x/y using the same Haversine formula
 as gps_odom, with the origin received from the transient-local "origin" topic.
-Depth is derived from position.altitude (negated: altitude is positive-up,
-depth is positive-down). Speed and slip radius come from waypoint props
-("speed", "slip"), falling back to node parameters.
+Depth comes from position.altitude (positive-down). Mode is set via the "DFB"
+(depth-from-bottom) prop: "true" → ALTITUDE mode, anything else → DEPTH mode.
+Speed and arrival radii come from props ("speed", "cap", "slip"), falling back
+to node parameters.
 
-Publishes VehicleSetpoint on "control/setpoint" whenever transiting, and
+Publishes VehicleSetpoint on "guidance/setpoint_raw" whenever transiting, and
 WaypointFeedback on "waypoint_feedback" each control loop tick. Transitions
 to STATE_ARRIVED when within slip_radius, or STATE_SKIPPED on timeout.
 
@@ -35,7 +36,7 @@ Subscribes:
   - "state_estimate" (geometry_msgs/PoseWithCovarianceStamped) — current pose
 
 Publishes:
-  - "control/setpoint"  (cougars_interfaces/VehicleSetpoint)
+  - "guidance/setpoint_raw"  (cougars_interfaces/VehicleSetpoint)
   - "waypoint_feedback" (cougars_interfaces/WaypointFeedback)
 
 Arrival logic:
@@ -83,7 +84,7 @@ public:
             std::bind(&WaypointController::state_estimate_callback, this, _1));
 
         command_pub_ = this->create_publisher<cougars_interfaces::msg::VehicleSetpoint>(
-            "control/setpoint", 10);
+            "guidance/setpoint_raw", 10);
 
         feedback_pub_ = this->create_publisher<cougars_interfaces::msg::WaypointFeedback>(
             "waypoint_feedback", 10);
@@ -124,8 +125,8 @@ private:
             origin_->latitude, origin_->longitude,
             current_waypoint_->position.latitude, current_waypoint_->position.longitude,
             waypoint_enu_x_, waypoint_enu_y_);
-        // GeoPoint altitude is positive-up (WGS84); depth is positive-down
-        waypoint_target_depth_ = -current_waypoint_->position.altitude;
+
+        waypoint_target_depth_ = current_waypoint_->position.altitude;
         waypoint_converted_ = true;
         RCLCPP_INFO(this->get_logger(), "New waypoint: ENU (%.2f, %.2f), depth %.2f m",
                     waypoint_enu_x_, waypoint_enu_y_, waypoint_target_depth_);
@@ -151,12 +152,13 @@ private:
             return;
         }
 
-        auto props          = parse_props(current_waypoint_->props);
-        double speed          = get_prop_double(props, "speed", this->get_parameter("default_speed").as_double());
-        double cap_radius     = get_prop_double(props, "cap",   this->get_parameter("default_capture_radius").as_double());
-        double slip_radius    = get_prop_double(props, "slip",  this->get_parameter("default_slip_radius").as_double());
+        auto props           = parse_props(current_waypoint_->props);
+        double speed         = get_prop_double(props, "speed", this->get_parameter("default_speed").as_double());
+        double cap_radius    = get_prop_double(props, "cap",   this->get_parameter("default_capture_radius").as_double());
+        double slip_radius   = get_prop_double(props, "slip",  this->get_parameter("default_slip_radius").as_double());
         double slip_dwell_time = this->get_parameter("slip_dwell_time").as_double();
-
+        bool depth_from_bottom = (props.count("DFB") && props.at("DFB") == "true");
+            
         double dx = waypoint_enu_x_ - current_x_;
         double dy = waypoint_enu_y_ - current_y_;
         double distance           = std::sqrt(dx * dx + dy * dy);
@@ -209,6 +211,9 @@ private:
 
         auto cmd = cougars_interfaces::msg::VehicleSetpoint();
         cmd.header.stamp  = this->now();
+        cmd.mode          = depth_from_bottom
+                              ? cougars_interfaces::msg::VehicleSetpoint::ALTITUDE
+                              : cougars_interfaces::msg::VehicleSetpoint::DEPTH;
         cmd.heading       = target_heading_rad;  // radians, ENU (0 = East)
         cmd.depth         = waypoint_target_depth_;
         cmd.speed         = speed;

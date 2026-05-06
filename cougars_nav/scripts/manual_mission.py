@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
+import os
+
 import rclpy
 from rclpy.node import Node
 from cougars_interfaces.msg import VehicleSetpoint, SystemControl
 from rclpy.qos import qos_profile_system_default
-
+from ament_index_python.packages import get_package_share_directory
 
 import time
 import yaml
@@ -44,7 +46,8 @@ class ManualMission(Node):
 
         self.declare_parameter('command_timer_period', self.period) # in seconds
 
-        self.declare_parameter('mission_file_path', '')
+        cougars_nav_dir = os.path.join(get_package_share_directory('cougars_nav'))
+        self.declare_parameter('mission_file_path', os.path.join(cougars_nav_dir, 'config', 'mission', 'test_mission.yaml'))
 
         
         self.states = []  # Initialize as an empty list

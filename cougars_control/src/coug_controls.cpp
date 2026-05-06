@@ -107,7 +107,7 @@ public:
         std::bind(&CougControls::dvl_velocity_callback, this, _1));
 
     system_control_sub_ = this->create_subscription<cougars_interfaces::msg::SystemControl>(
-        "system/status", 1, std::bind(&CougControls::system_callback, this, _1));
+        "system/control", 1, std::bind(&CougControls::system_callback, this, _1));
 
     this->velocity[0] = 0.6f;
     this->velocity[1] = 0.0f;

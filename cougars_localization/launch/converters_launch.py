@@ -1,10 +1,12 @@
 
 import launch
 import launch_ros.actions
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch.conditions import IfCondition
 import launch_ros.descriptions
+
 
 def generate_launch_description():
     '''
@@ -21,6 +23,10 @@ def generate_launch_description():
         default_value=namespace,
         description='Namespace for the vehicle'
     )
+    sim_launch_arg = DeclareLaunchArgument(
+        'sim',
+        default_value='False'
+    )
     param_file_launch_arg = DeclareLaunchArgument(
         'param_file',
         default_value=param_file,
@@ -32,66 +38,77 @@ def generate_launch_description():
         description='Path to the fleet parameter file'
     )
 
+    # TODO figure out how to do this better. Don't want to hardcode the path. 
+    # I wont have the sim converters on the vehicle. It still might try and resolve the path. 
+    # I could put the sim converters launch file in a package that will be on the vehicle
+    sim_converters = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource('/home/frostlab/ros2_ws/install/sim_converters/share/sim_converters/launch/reverse_launch.py'),
+        condition=IfCondition(LaunchConfiguration('sim'))
+    )
+
     launch_actions = []
     launch_actions.extend([
         namespace_launch_arg,
         param_file_launch_arg,
         fleet_param_launch_arg,
+        sim_launch_arg,
+        sim_converters,
     ])
-    # TODO: IF GPS is True
     depth = launch_ros.actions.Node(
-        package='cougars_localization',
-        executable='depth_convertor',
+        package='pressure_sensor',
+        executable='pressure_to_depth',
         parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
         namespace=LaunchConfiguration('namespace'),
     )
     dvl = launch_ros.actions.Node(
-        package='cougars_localization',
-        executable='dvl_convertor',
+        package='dvl_a50',
+        executable='dvl_a50_nav',
         parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
         namespace=LaunchConfiguration('namespace'),
     )
-    dvl_global = launch_ros.actions.Node(
-        package='cougars_localization',
-        executable='dvl_global',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
-        namespace=LaunchConfiguration('namespace'),
-    )
+    # dvl_global = launch_ros.actions.Node(
+    #     package='cougars_localization',
+    #     executable='dvl_global',
+    #     parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
+    #     namespace=LaunchConfiguration('namespace'),
+    # )
 
 
     launch_actions.extend([
         depth, 
         dvl, 
-        dvl_global
+        # dvl_global
     ])
 
     launch_actions.extend([
         # Start the data conversion nodes
-        launch_ros.actions.Node(
-            package='cougars_coms',
-            executable='cougars_coms',
-            parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
-            namespace=LaunchConfiguration('namespace'),
-        ),
-        launch_ros.actions.Node(
-            package='cougars_localization',
-            executable='seatrac_ahrs_convertor',
-            parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
-            namespace=LaunchConfiguration('namespace'),
-        ),
-        launch_ros.actions.Node(
-            package='cougars_localization',
-            executable='gps_odom.py',
-            parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
-            namespace=LaunchConfiguration('namespace'),
-        ),
+        # launch_ros.actions.Node(
+        #     package='cougars_coms',
+        #     executable='cougars_coms',
+        #     parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
+        #     namespace=LaunchConfiguration('namespace'),
+        # ),
+        # launch_ros.actions.Node(
+        #     package='cougars_localization',
+        #     executable='seatrac_ahrs_convertor',
+        #     parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
+        #     namespace=LaunchConfiguration('namespace'),
+        # ),
+        # TODO need to rework
+        # launch_ros.actions.Node(
+        #     package='cougars_localization',
+        #     executable='gps_odom.py',
+        #     parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
+        #     namespace=LaunchConfiguration('namespace'),
+        # ),
 
-        launch_ros.actions.Node(
-            package='cougars_localization',
-            executable='static_tf_publisher',
-            parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
-            namespace=LaunchConfiguration('namespace')
-        )
+        # Replace with URDF static transform publisher
+        # launch_ros.actions.Node(
+        #     package='cougars_localization',
+        #     executable='static_tf_publisher',
+        #     parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
+        #     namespace=LaunchConfiguration('namespace')
+        # )
     ])
 
     return launch.LaunchDescription(launch_actions)

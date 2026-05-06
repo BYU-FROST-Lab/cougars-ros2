@@ -62,17 +62,6 @@ def generate_launch_description():
         namespace=LaunchConfiguration('namespace'),
         output='log',
     ))
-    # TODO if BLUEROV is true
-    # TODO DEFINETLY NEED TO FIX THIS
-    # Pressure sensor for blueROV
-    # launch_actions.append(launch_ros.actions.Node(
-    #     package='pressure_sensor',
-    #     executable='get_pressure',
-    #     parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
-    #     namespace=LaunchConfiguration('namespace'),
-    #     output='log',
-    # ))
-
 
     launch_actions.extend([
         # launch_ros.actions.Node(
