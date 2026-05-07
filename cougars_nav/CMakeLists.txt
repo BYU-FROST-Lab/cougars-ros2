@@ -60,6 +60,7 @@ ament_target_dependencies(waypoint_controller
   cougars_interfaces
   geometry_msgs
   tf2_ros
+  nav_msgs
 )
 
 

@@ -8,7 +8,7 @@
 #include "cougars_interfaces/msg/waypoint_feedback.hpp"
 #include "geographic_msgs/msg/way_point.hpp"
 #include "geographic_msgs/msg/geo_point.hpp"
-#include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 #include "tf2/LinearMath/Quaternion.h"
 #include "tf2/LinearMath/Matrix3x3.h"
 
@@ -79,7 +79,7 @@ public:
             "waypoint", 10,
             std::bind(&WaypointController::waypoint_callback, this, _1));
 
-        state_estimate_sub_ = this->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
+        state_estimate_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
             "state_estimate", 10,
             std::bind(&WaypointController::state_estimate_callback, this, _1));
 
@@ -132,7 +132,7 @@ private:
                     waypoint_enu_x_, waypoint_enu_y_, waypoint_target_depth_);
     }
 
-    void state_estimate_callback(const geometry_msgs::msg::PoseWithCovarianceStamped &msg) {
+    void state_estimate_callback(const nav_msgs::msg::Odometry &msg) {
         current_x_ = msg.pose.pose.position.x;
         current_y_ = msg.pose.pose.position.y;
         tf2::Quaternion q(msg.pose.pose.orientation.x, msg.pose.pose.orientation.y,
@@ -288,7 +288,7 @@ private:
 
     rclcpp::Subscription<geographic_msgs::msg::GeoPoint>::SharedPtr                    origin_sub_;
     rclcpp::Subscription<geographic_msgs::msg::WayPoint>::SharedPtr                    waypoint_sub_;
-    rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr     state_estimate_sub_;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr     state_estimate_sub_;
 
     rclcpp::Publisher<cougars_interfaces::msg::VehicleSetpoint>::SharedPtr   command_pub_;
     rclcpp::Publisher<cougars_interfaces::msg::WaypointFeedback>::SharedPtr feedback_pub_;
