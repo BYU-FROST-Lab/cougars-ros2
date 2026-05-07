@@ -48,7 +48,7 @@ public:
 
         // subscription to startup
         this->startup_sub_ = this->create_subscription<cougars_interfaces::msg::SystemControl>(
-            "startup", 10, std::bind(&WaypointIterator::startupCallback, this, std::placeholders::_1));
+            "system/control", 10, std::bind(&WaypointIterator::startupCallback, this, std::placeholders::_1));
 
         // publishes waypoints to the waypoint manager
         this->waypoint_pub_ = this->create_publisher<geographic_msgs::msg::WayPoint>("waypoint", 10);
@@ -66,6 +66,9 @@ public:
         // Handle mission message
         std::unordered_map<std::string, std::string> route_props_map = getKeyValue(msg->props);
         waypoint_list.clear();
+
+        // print recieved mission
+        RCLCPP_INFO(this->get_logger(), "Received new mission with %ld waypoints.", msg->points.size());
 
         // Populates any missing properties in the waypoints with the mission-level properties, so that the waypoints have all necessary information for the waypoint manager
         for (geographic_msgs::msg::WayPoint& wp : msg->points) {
@@ -116,6 +119,10 @@ public:
                 publishMissionFeedback();
                 return;
             }
+
+            // print waypoint number being sent
+            RCLCPP_INFO(this->get_logger(), "Sending waypoint %ld.", this->current_waypoint_index);
+
             this->publishCurrentWaypoint();
             RCLCPP_INFO(this->get_logger(), "Waypoint %ld completed. Moving to waypoint %ld.", this->current_waypoint_index - 1, this->current_waypoint_index); 
         }
@@ -125,6 +132,10 @@ public:
     void startupCallback(const cougars_interfaces::msg::SystemControl::SharedPtr msg) {
         // Handle startup message
         if (this->mission_state != cougars_interfaces::msg::MissionFeedback::STATE_RUNNING && msg->start.data == true) {
+
+            // print starting waypoint iterator
+            RCLCPP_INFO(this->get_logger(), "Received startup command. Starting waypoint iterator.");
+
             this->start_time = this->now();
             this->mission_state = cougars_interfaces::msg::MissionFeedback::STATE_RUNNING;
             this->current_waypoint_index = 0;
