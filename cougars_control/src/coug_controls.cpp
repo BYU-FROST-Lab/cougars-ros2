@@ -196,9 +196,10 @@ private:
       // floating point precision issue bug fix
       if (std::abs(msg.depth - this->desired_depth) >= EPSILON)
       {
-        RCLCPP_INFO(this->get_logger(), "New Depth Desired: %f, Old desired depth %f", msg.depth, this->desired_depth);
+        // RCLCPP_INFO(this->get_logger(), "New Depth Desired: %f, Old desired depth %f", msg.depth, this->desired_depth);
+        // TODO come back to this
         this->desired_depth = msg.depth;
-        this->depth_ref = this->actual_depth;
+        // this->depth_ref = this->actual_depth;
       }
     }
 
@@ -216,6 +217,12 @@ private:
 
   void actual_depth_callback(const nav_msgs::msg::Odometry &depth_msg)
   {
+    if (!init_depth_flag)
+    {
+      // Not sure if this will cause any issues. Need to look into this!
+      this->depth_ref = -depth_msg.pose.pose.position.z; // Set initial depth reference to current depth
+      init_depth_flag = true;
+    }
     // Negate z (ENU) to get positive-down depth
     this->actual_depth = -depth_msg.pose.pose.position.z;
   }
@@ -458,6 +465,7 @@ private:
 
   // node initialization flag
   bool init_flag = false;
+  bool init_depth_flag = false;
 
   // control objects
   PID myHeadingPID; // Yaw/heading control

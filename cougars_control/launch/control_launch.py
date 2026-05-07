@@ -100,7 +100,7 @@ def generate_launch_description():
     manual_mission_node = Node(
         package='cougars_nav',
         executable='manual_mission.py',
-        parameters=[param_file, fleet_param],
+        parameters=[{ 'vehicle_ns': namespace }, param_file, fleet_param],
         namespace=namespace,
         output='log',
         condition=IfCondition(LaunchConfiguration('manual_mission'))

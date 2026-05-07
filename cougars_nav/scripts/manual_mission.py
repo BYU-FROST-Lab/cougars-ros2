@@ -42,8 +42,7 @@ class ManualMission(Node):
         self.last_speed = -1.0
         
         # Declare parameters
-        self.declare_parameter('vehicle_id', 0)
-
+        self.declare_parameter('vehicle_ns', '')
         self.declare_parameter('command_timer_period', self.period) # in seconds
 
         cougars_nav_dir = os.path.join(get_package_share_directory('cougars_nav'))
@@ -81,7 +80,14 @@ class ManualMission(Node):
                 data = yaml.safe_load(f)
                 mission_type = data.get('mission_type', '')
                 if mission_type == "manual":
-                    states = data.get('states', [])
+                    states = []
+                    if self.vehicle_ns:
+                        vehicle_states = data.get(self.vehicle_ns, {})
+                        states = vehicle_states.get('states', [])
+                    else:
+                        self.get_logger().warn("Vehicle namespace parameter is empty. Attempting to load states from top-level 'states' key.")
+                        states = data.get('states', [])
+
                     self.states = []
 
                     for state in states:
@@ -106,6 +112,7 @@ class ManualMission(Node):
     def get_parameters(self):
         self.destroy_timer(self.timer)
         self.period = self.get_parameter("command_timer_period").get_parameter_value().double_value
+        self.vehicle_ns = self.get_parameter('vehicle_ns').value
 
         # Create a new timer with the updated period
         self.timer = self.create_timer(self.period, self.timer_callback)
@@ -126,9 +133,9 @@ class ManualMission(Node):
             if self.started:
                 self.get_logger().info('Manual Mission has already been started. Needs to be reset before initialization')
             else:
-                start_mission = self.load_states()  # Load states from JSON file
+                self.get_parameters()
+                start_mission = self.load_states()  # Load states from yaml file
                 if start_mission:
-                    self.get_parameters()
                     self.started = init_bool
                     self.get_logger().info('Manual Mission Started')
                     # self.counter = 0
