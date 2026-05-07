@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include "cougars_interfaces/msg/vehicle_setpoint.hpp"
 #include "cougars_interfaces/msg/waypoint_feedback.hpp"
+#include "cougars_interfaces/msg/system_control.hpp"
 #include "geographic_msgs/msg/way_point.hpp"
 #include "geographic_msgs/msg/geo_point.hpp"
 #include "nav_msgs/msg/odometry.hpp"
@@ -34,6 +35,7 @@ Subscribes:
   - "waypoint"       (geographic_msgs/WayPoint)       — from waypoint_iterator
   - "origin"         (geographic_msgs/GeoPoint)        — transient-local
   - "state_estimate" (geometry_msgs/PoseWithCovarianceStamped) — current pose
+  - "system/control" (cougars_interfaces/SystemControl) — to know when to stop
 
 Publishes:
   - "guidance/setpoint_raw"  (cougars_interfaces/VehicleSetpoint)
@@ -79,6 +81,9 @@ public:
             "waypoint", 10,
             std::bind(&WaypointController::waypoint_callback, this, _1));
 
+        this->system_control_sub_ = this->create_subscription<cougars_interfaces::msg::SystemControl>(
+            "system/control", 10, std::bind(&WaypointController::system_control_callback, this, std::placeholders::_1));
+
         state_estimate_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
             "state_estimate", 10,
             std::bind(&WaypointController::state_estimate_callback, this, _1));
@@ -120,6 +125,13 @@ private:
         }
     }
 
+    void system_control_callback(const cougars_interfaces::msg::SystemControl::SharedPtr msg) {
+        if (msg->start == false) {
+            RCLCPP_INFO(this->get_logger(), "Turning off WaypointController.");
+            waypoint_state_ = cougars_interfaces::msg::WaypointFeedback::PARKING;
+        }
+    }
+
     void convert_waypoint() {
         haversine_to_enu(
             origin_->latitude, origin_->longitude,
@@ -148,7 +160,8 @@ private:
         }
 
         if (waypoint_state_ == cougars_interfaces::msg::WaypointFeedback::STATE_ARRIVED ||
-            waypoint_state_ == cougars_interfaces::msg::WaypointFeedback::STATE_SKIPPED) {
+            waypoint_state_ == cougars_interfaces::msg::WaypointFeedback::STATE_SKIPPED ||
+            waypoint_state_ == cougars_interfaces::msg::WaypointFeedback::PARKING) {
             return;
         }
 
