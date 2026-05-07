@@ -1,0 +1,12 @@
+manual_mission:
+  ros__parameters:
+
+    # # Vehicle identifier (used for multi-vehicle deployments)
+    # vehicle_id: 0
+
+    # How often the state machine ticks and publishes a setpoint (seconds)
+    command_timer_period: 0.5
+
+    # Absolute path to the mission YAML file to load on start
+    # Example: /home/frostlab/config/mission/test_mission.yaml
+    # mission_file_path: ""
