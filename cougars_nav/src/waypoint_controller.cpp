@@ -126,9 +126,9 @@ private:
     }
 
     void system_control_callback(const cougars_interfaces::msg::SystemControl::SharedPtr msg) {
-        if (msg->start == false) {
+        if (msg->start.data == false) {
             RCLCPP_INFO(this->get_logger(), "Turning off WaypointController.");
-            waypoint_state_ = cougars_interfaces::msg::WaypointFeedback::PARKING;
+            waypoint_state_ = cougars_interfaces::msg::WaypointFeedback::STATE_PARKING;
         }
     }
 
@@ -161,7 +161,7 @@ private:
 
         if (waypoint_state_ == cougars_interfaces::msg::WaypointFeedback::STATE_ARRIVED ||
             waypoint_state_ == cougars_interfaces::msg::WaypointFeedback::STATE_SKIPPED ||
-            waypoint_state_ == cougars_interfaces::msg::WaypointFeedback::PARKING) {
+            waypoint_state_ == cougars_interfaces::msg::WaypointFeedback::STATE_PARKING) {
             return;
         }
 
@@ -301,10 +301,11 @@ private:
 
     rclcpp::Subscription<geographic_msgs::msg::GeoPoint>::SharedPtr                    origin_sub_;
     rclcpp::Subscription<geographic_msgs::msg::WayPoint>::SharedPtr                    waypoint_sub_;
-    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr     state_estimate_sub_;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr                           state_estimate_sub_;
+    rclcpp::Subscription<cougars_interfaces::msg::SystemControl>::SharedPtr            system_control_sub_;
 
     rclcpp::Publisher<cougars_interfaces::msg::VehicleSetpoint>::SharedPtr   command_pub_;
-    rclcpp::Publisher<cougars_interfaces::msg::WaypointFeedback>::SharedPtr feedback_pub_;
+    rclcpp::Publisher<cougars_interfaces::msg::WaypointFeedback>::SharedPtr  feedback_pub_;
 
     rclcpp::TimerBase::SharedPtr control_timer_;
 
