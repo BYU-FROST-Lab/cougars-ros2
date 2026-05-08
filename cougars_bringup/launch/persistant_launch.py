@@ -86,6 +86,7 @@ def launch_setup(context, *args, **kwargs):
 
 
 def generate_launch_description():
+    # TODO get home directory instead of hardcoding /home/frostlab
     return launch.LaunchDescription([
         DeclareLaunchArgument(
             'namespace',
