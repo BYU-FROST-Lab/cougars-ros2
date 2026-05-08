@@ -53,6 +53,8 @@ public:
         // publishes waypoints to the waypoint manager
         this->waypoint_pub_ = this->create_publisher<geographic_msgs::msg::WayPoint>("waypoint", 10);
 
+        this->startup_pub_ = this->create_publisher<cougars_interfaces::msg::SystemControl>("system/control", 10);
+
         // publishes mission feedback
         this->mission_feedback_pub_ = this->create_publisher<cougars_interfaces::msg::MissionFeedback>("mission_feedback", 10);
 
@@ -147,6 +149,9 @@ public:
             } else {
                 RCLCPP_DEBUG(this->get_logger(), "Mission is being stopped.");
                 this->mission_state = cougars_interfaces::msg::MissionFeedback::STATE_ABORTED;
+                cougars_interfaces::msg::SystemControl stop_msg;
+                stop_msg.start.data = false;
+                this->start_up_pub_->publish(stop_msg);
             }
         }
     }
@@ -200,6 +205,7 @@ private:
 
     rclcpp::Publisher<geographic_msgs::msg::WayPoint>::SharedPtr waypoint_pub_;
     rclcpp::Publisher<cougars_interfaces::msg::MissionFeedback>::SharedPtr mission_feedback_pub_;
+    rclcpp::Publisher<cougars_interfaces::msg::SystemControl>::SharedPtr startup_pub_;
 
     std::vector<geographic_msgs::msg::WayPoint> waypoint_list;
     cougars_interfaces::msg::WaypointFeedback current_wp_feedback = cougars_interfaces::msg::WaypointFeedback(); // Store the most recent waypoint feedback message
