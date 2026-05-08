@@ -118,6 +118,9 @@ public:
             if (this->current_waypoint_index >= this->waypoint_list.size()) {
                 RCLCPP_INFO(this->get_logger(), "Mission completed! All waypoints have been reached or skipped.");
                 this->mission_state = cougars_interfaces::msg::MissionFeedback::STATE_COMPLETE;
+                cougars_interfaces::msg::SystemControl stop_msg;
+                stop_msg.start.data = false;
+                this->startup_pub_->publish(stop_msg);
                 publishMissionFeedback();
                 return;
             }
@@ -149,9 +152,6 @@ public:
             } else {
                 RCLCPP_DEBUG(this->get_logger(), "Mission is being stopped.");
                 this->mission_state = cougars_interfaces::msg::MissionFeedback::STATE_ABORTED;
-                cougars_interfaces::msg::SystemControl stop_msg;
-                stop_msg.start.data = false;
-                this->start_up_pub_->publish(stop_msg);
             }
         }
     }
