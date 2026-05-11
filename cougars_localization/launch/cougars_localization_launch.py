@@ -10,4 +10,11 @@ def generate_launch_description():
 
     # TODO: add localization
 
-    return LaunchDescription([])
+    use_sim_time_launch_arg = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='False'
+    )
+
+    return LaunchDescription([
+        use_sim_time_launch_arg,
+    ])

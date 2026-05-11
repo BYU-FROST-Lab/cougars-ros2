@@ -35,6 +35,10 @@ def generate_launch_description():
         'sim',
         default_value='False'
     )
+    use_sim_time_launch_arg = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='False'
+    )
     param_file_launch_arg = DeclareLaunchArgument(
         'param_file',
         default_value=param_file
@@ -48,6 +52,7 @@ def generate_launch_description():
     launch_actions.extend([
         namespace_launch_arg,
         sim_launch_arg,
+            use_sim_time_launch_arg,
         param_file_launch_arg,
         fleet_param_launch_arg,
         OpaqueFunction(function=debug_launch_args)
@@ -58,7 +63,7 @@ def generate_launch_description():
         executable='waypoint_iterator',
         name='waypoint_iterator',
         namespace=LaunchConfiguration('namespace'),
-        parameters=[LaunchConfiguration('param_file')],
+            parameters=[LaunchConfiguration('param_file'), {'use_sim_time': LaunchConfiguration('use_sim_time')}],
         output='screen',
     )
 
@@ -67,7 +72,7 @@ def generate_launch_description():
         executable='waypoint_controller',
         name='waypoint_controller',
         namespace=LaunchConfiguration('namespace'),
-        parameters=[LaunchConfiguration('param_file')],
+            parameters=[LaunchConfiguration('param_file'), {'use_sim_time': LaunchConfiguration('use_sim_time')}],
         remappings=[('state_estimate', '/holoocean/auv0/DynamicsSensorOdom')],
         output='screen',
     )

@@ -24,6 +24,11 @@ def generate_launch_description():
         'fleet_param',
         default_value='/home/frostlab/config/fleet/fleet_params.yaml'
     )
+    use_sim_time_arg = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='False',
+        description='Use simulation clock if true'
+    )
     
     acoustic_ping_arg = DeclareLaunchArgument(
         'acoustic_pinger',
@@ -41,6 +46,7 @@ def generate_launch_description():
     namespace = LaunchConfiguration('namespace')
     param_file = LaunchConfiguration('param_file')
     fleet_param = LaunchConfiguration('fleet_param')
+    use_sim_time = LaunchConfiguration('use_sim_time')
     acoustic_ping = LaunchConfiguration('acoustic_pinger')
     debug = LaunchConfiguration('debug')
 
@@ -48,7 +54,7 @@ def generate_launch_description():
     cougars_coms_node = Node(
         package='cougars_coms',
         executable='cougars_coms',
-        parameters=[param_file, fleet_param],
+        parameters=[param_file, fleet_param, {'use_sim_time': use_sim_time}],
         namespace=namespace
     )
 
@@ -59,7 +65,8 @@ def generate_launch_description():
         namespace=namespace,
         parameters=[
             param_file, fleet_param,
-            {'debug_mode': debug}
+            {'debug_mode': debug},
+            {'use_sim_time': use_sim_time}
         ],
         output='screen',
         emulate_tty=True
@@ -68,7 +75,7 @@ def generate_launch_description():
     vehicle_pinger_node = Node(
         package='cougars_coms',
         executable='vehicle_pinger',
-        parameters=[param_file, fleet_param],
+        parameters=[param_file, fleet_param, {'use_sim_time': use_sim_time}],
         condition=IfCondition(acoustic_ping),
     )
 
@@ -78,6 +85,7 @@ def generate_launch_description():
         namespace_arg,
         param_file_arg,
         fleet_param_arg,
+        use_sim_time_arg,
         acoustic_ping_arg,
         debug_arg,
 

@@ -36,30 +36,37 @@ def generate_launch_description():
         default_value="/home/frostlab/config/fleet/fleet_params.yaml",
         description='Path to the fleet parameter file'
     )
+    use_sim_time_launch_arg = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='False',
+        description='Use simulation clock if true'
+    )
+
+    use_sim_time = LaunchConfiguration('use_sim_time')
 
     # declare nodes
     depth_converter = launch_ros.actions.Node(
         package='cougars_bridge',
         executable='depth_converter',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
+        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
         namespace=LaunchConfiguration('namespace'),
     )
     dvl_converter = launch_ros.actions.Node(
         package='cougars_bridge',
         executable='dvl_converter',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
+        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
         namespace=LaunchConfiguration('namespace'),
     )
     dvl_global = launch_ros.actions.Node(
         package='cougars_bridge',
         executable='dvl_global',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
+        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
         namespace=LaunchConfiguration('namespace'),
     )
     seatrac_ahrs_convertor = launch_ros.actions.Node(
         package='cougars_bridge',
         executable='seatrac_imu_converter',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
+        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
         namespace=LaunchConfiguration('namespace'),
     )
 
@@ -71,6 +78,7 @@ def generate_launch_description():
         namespace_launch_arg,
         param_file_launch_arg,
         fleet_param_launch_arg,
+        use_sim_time_launch_arg,
 
         # launch nodes
         depth_converter,

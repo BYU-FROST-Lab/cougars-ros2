@@ -29,6 +29,7 @@ def launch_setup(context, *args, **kwargs):
         ('namespace',   LaunchConfiguration('namespace').perform(context)),
         ('param_file',  LaunchConfiguration('param_file').perform(context)),
         ('fleet_param', LaunchConfiguration('fleet_param').perform(context)),
+        ('use_sim_time', LaunchConfiguration('sim').perform(context)),
         ('flags',       LaunchConfiguration('flags').perform(context)),
     ]
 

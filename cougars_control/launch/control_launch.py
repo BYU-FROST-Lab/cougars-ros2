@@ -24,6 +24,10 @@ def generate_launch_description():
         'sim',
         default_value='False'
     )
+    use_sim_time_launch_arg = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='False'
+    )
     demo_launch_arg = DeclareLaunchArgument(
         'demo',
         default_value='False'
@@ -53,6 +57,7 @@ def generate_launch_description():
     namespace = LaunchConfiguration('namespace')
     param_file = LaunchConfiguration('param_file')
     fleet_param = LaunchConfiguration('fleet_param')
+    use_sim_time = LaunchConfiguration('use_sim_time')
 
 
   ### Node definitions
@@ -61,7 +66,7 @@ def generate_launch_description():
     mc_serial_node = Node(
         package='cougars_control',
         executable='mc_serial_node',
-        parameters=[param_file, fleet_param],
+        parameters=[param_file, fleet_param, {'use_sim_time': use_sim_time}],
         namespace=namespace,
         output='log',
         condition=UnlessCondition(LaunchConfiguration('sim'))
@@ -71,7 +76,7 @@ def generate_launch_description():
     kinematics_node = Node(
         package='cougars_control',
         executable='coug_kinematics',
-        parameters=[param_file, fleet_param],
+        parameters=[param_file, fleet_param, {'use_sim_time': use_sim_time}],
         namespace=namespace,
         output='log',
     )
@@ -79,7 +84,7 @@ def generate_launch_description():
     controls_node = Node(
         package='cougars_control',
         executable='coug_controls',
-        parameters=[param_file, fleet_param],
+        parameters=[param_file, fleet_param, {'use_sim_time': use_sim_time}],
         namespace=namespace,
         output='log',
         condition=UnlessCondition(LaunchConfiguration('fins_manual'))
@@ -89,7 +94,7 @@ def generate_launch_description():
     fins_manual_node = Node(
         package='cougars_control',
         executable='fins_manual.py',
-        parameters=[param_file, fleet_param],
+        parameters=[param_file, fleet_param, {'use_sim_time': use_sim_time}],
         namespace=namespace,
         output='log',
         emulate_tty=True,
@@ -103,12 +108,14 @@ def generate_launch_description():
         name='setpoint_transformer',
         namespace=namespace,
         output='log',
+        parameters=[{'use_sim_time': use_sim_time}],
     )
 
     launch_actions = [
         # launch args
         namespace_launch_arg,
         sim_launch_arg,
+        use_sim_time_launch_arg,
         demo_launch_arg,
         param_file_launch_arg,
         fleet_param_launch_arg,

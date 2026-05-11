@@ -32,6 +32,11 @@ def generate_launch_description():
         default_value='/home/frostlab/config/fleet/fleet_params.yaml',          
         description='Path to the fleet parameter file'
     )
+    use_sim_time_launch_arg = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='False',
+        description='Use simulation clock if true'
+    )
 
     use_dvl_launch_arg = DeclareLaunchArgument(
         'use_dvl',
@@ -49,18 +54,20 @@ def generate_launch_description():
         description='Launch Seatrac acoustic modem node'
     )
 
+    use_sim_time = LaunchConfiguration('use_sim_time')
+
     # Declare launch nodes
     dvl_node = launch_ros.actions.Node(
         package='dvl_a50',
         executable='dvl_a50_sensor',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
+        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
         namespace=LaunchConfiguration('namespace'),
         condition=IfCondition(LaunchConfiguration('use_dvl')),
     )
     dvl_manager = launch_ros.actions.Node(
         package='cougars_bridge',
         executable='dvl_manager.py',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
+        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
         namespace=LaunchConfiguration('namespace'),
         condition=IfCondition(LaunchConfiguration('use_dvl')),
     )
@@ -68,7 +75,7 @@ def generate_launch_description():
     seatrac_node = launch_ros.actions.Node(
         package='seatrac',
         executable='modem',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param')],
+        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
         namespace=LaunchConfiguration('namespace'),
         output='log',
         condition=IfCondition(LaunchConfiguration('acoms_on')),
@@ -89,7 +96,8 @@ def generate_launch_description():
                     LaunchConfiguration('param_file'),
                     LaunchConfiguration('fleet_param'),
                     # vehicle_params[namespace]['gpsd_client']['ros__parameters'],
-                    {'log_level': 'warn'}  # Add log level here
+                    {'log_level': 'warn'},  # Add log level here
+                    {'use_sim_time': use_sim_time}
                 ],
                 extra_arguments=[{'use_intra_process_comms': True}]
             ),
@@ -99,7 +107,8 @@ def generate_launch_description():
                 namespace=LaunchConfiguration('namespace'),
                 name='utm_gpsfix_to_odometry_node',
                 parameters=[
-                    {'log_level': 'warn'}  # Add log level here
+                    {'log_level': 'warn'},  # Add log level here
+                    {'use_sim_time': use_sim_time}
                 ],
             ),
         ],
@@ -113,6 +122,7 @@ def generate_launch_description():
         namespace_launch_arg,
         param_file_launch_arg,
         fleet_param_launch_arg,
+        use_sim_time_launch_arg,
         use_dvl_launch_arg,
         use_gps_launch_arg,
         use_acoustics_launch_arg,
