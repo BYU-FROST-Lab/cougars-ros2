@@ -53,8 +53,17 @@ def generate_launch_description():
         get_package_share_directory('cougars_localization'), 'launch')
     nav_dir = os.path.join(
         get_package_share_directory('cougars_nav'), 'launch')
-    holoocean_bridge_dir = os.path.join(
-        get_package_share_directory('sim_converters'), 'launch')
+
+    # Resolve holoocean-sensor-bridge share directory if available. If the
+    # package isn't installed or the launch directory doesn't exist, set to
+    # None so later code can skip including those launch files.
+    try:
+        holoocean_share = get_package_share_directory('holoocean-sensor-bridge')
+        holoocean_bridge_dir = os.path.join(holoocean_share, 'launch')
+        if not os.path.isdir(holoocean_bridge_dir):
+            holoocean_bridge_dir = None
+    except Exception:
+        holoocean_bridge_dir = None
 
 
 
@@ -106,6 +115,7 @@ def generate_launch_description():
             os.path.join(holoocean_bridge_dir, "reverse_launch.py")),
         launch_arguments=launch_args,
         condition=IfCondition(LaunchConfiguration('sim')))
+
 
 
     launch_actions = [
