@@ -66,8 +66,8 @@ class RFBridge(Node):
             self.device.open()
             self.get_logger().info(f"Opened XBee device on {self.xbee_port} at {self.xbee_baud} baud.")
         except Exception as e:
-            self.get_logger().error(f"Failed to open XBee device: {e}")
-            raise
+            self.get_logger().error("Failed to open XBee device")
+            return
 
         # ROS publishers and subscribers
         self.publisher = self.create_publisher(String, 'rf_received', 10)

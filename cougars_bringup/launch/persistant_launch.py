@@ -4,6 +4,7 @@ import launch_ros.actions
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 import launch_ros.descriptions
 from launch.substitutions import LaunchConfiguration
+from launch.conditions import IfCondition, UnlessCondition
 
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python.packages import get_package_share_directory
@@ -48,7 +49,8 @@ def launch_setup(context, *args, **kwargs):
     nav_dir = os.path.join(
         get_package_share_directory('cougars_nav'), 'launch')
     holoocean_bridge_dir = os.path.join(
-        get_package_share_directory('holoocean-sensor-bridge'), 'launch')
+        get_package_share_directory('sim_converters'), 'launch')
+
 
     ### Launch files
     return [
@@ -80,20 +82,26 @@ def launch_setup(context, *args, **kwargs):
         launch.actions.IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(bringup_dir, "sensors_launch.py")),
-            launch_arguments=launch_args),
+            launch_arguments=launch_args,
+            condition=UnlessCondition(LaunchConfiguration('sim'))
+        ),
 
         launch.actions.IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(bringup_dir, "bringup_launch.py")),
             launch_arguments=launch_args),
+
         launch.actions.IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(holoocean_bridge_dir, "full_launch.py")),
             launch_arguments=launch_args),
+            
         launch.actions.IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(holoocean_bridge_dir, "reverse_launch.py")),
-            launch_arguments=launch_args),
+            launch_arguments=launch_args,
+            condition=IfCondition(LaunchConfiguration('sim'))),
+            
     ]
 
 
@@ -109,6 +117,11 @@ def generate_launch_description():
             'param_file',
             default_value='/home/frostlab/config/agent/vehicle_params.yaml',
             description='Path to the vehicle parameter file'
+        ),
+        DeclareLaunchArgument(
+            'sim',
+            default_value='False',
+            description='Whether to launch in simulation mode'
         ),
         DeclareLaunchArgument(
             'fleet_param',

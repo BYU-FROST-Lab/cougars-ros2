@@ -59,7 +59,7 @@ def generate_launch_description():
         name='waypoint_iterator',
         namespace=LaunchConfiguration('namespace'),
         parameters=[LaunchConfiguration('param_file')],
-        output='log',
+        output='screen',
     )
 
     waypoint_controller = Node(
@@ -69,7 +69,7 @@ def generate_launch_description():
         namespace=LaunchConfiguration('namespace'),
         parameters=[LaunchConfiguration('param_file')],
         remappings=[('state_estimate', '/holoocean/auv0/DynamicsSensorOdom')],
-        output='log',
+        output='screen',
     )
 
     launch_actions.append(waypoint_iterator)
