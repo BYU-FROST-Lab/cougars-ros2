@@ -49,12 +49,20 @@ def launch_setup(context, *args, **kwargs):
         get_package_share_directory('cougars_localization'), 'launch')
     nav_dir = os.path.join(
         get_package_share_directory('cougars_nav'), 'launch')
-    holoocean_bridge_dir = os.path.join(
-        get_package_share_directory('sim_converters'), 'launch')
 
+    # Resolve holoocean-sensor-bridge share directory if available. If the
+    # package isn't installed or the launch directory doesn't exist, set to
+    # None so later code can skip including those launch files.
+    try:
+        holoocean_share = get_package_share_directory('holoocean-sensor-bridge')
+        holoocean_bridge_dir = os.path.join(holoocean_share, 'launch')
+        if not os.path.isdir(holoocean_bridge_dir):
+            holoocean_bridge_dir = None
+    except Exception:
+        holoocean_bridge_dir = None
 
     ### Launch files
-    return [
+    actions = [
         launch.actions.IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(bridge_dir, "cougars_bridge_launch.py")),
@@ -91,19 +99,30 @@ def launch_setup(context, *args, **kwargs):
             PythonLaunchDescriptionSource(
                 os.path.join(bringup_dir, "bringup_launch.py")),
             launch_arguments=launch_args),
-
-        launch.actions.IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(holoocean_bridge_dir, "full_launch.py")),
-            launch_arguments=launch_args),
-            
-        launch.actions.IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(holoocean_bridge_dir, "reverse_launch.py")),
-            launch_arguments=launch_args,
-            condition=IfCondition(LaunchConfiguration('sim'))),
-            
+    
     ]
+
+    # Only include holoocean bridge launch files if the package/launch
+    # directory was found. This avoids passing None into os.path.join.
+    if holoocean_bridge_dir is not None:
+        actions.append(
+            launch.actions.IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    os.path.join(holoocean_bridge_dir, "full_launch.py")),
+                launch_arguments=launch_args,
+                condition=launch.conditions.IfCondition(LaunchConfiguration('sim')),
+            )
+        )
+
+        actions.append(
+            launch.actions.IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    os.path.join(holoocean_bridge_dir, "reverse_launch.py")),
+                launch_arguments=launch_args,
+                condition=launch.conditions.IfCondition(LaunchConfiguration('sim')),
+            )
+        )
+    return actions
 
 
 def generate_launch_description():
@@ -133,6 +152,11 @@ def generate_launch_description():
             'flags',
             default_value='',
             description='Comma-separated list of launch argument overrides.'
+        ),
+        DeclareLaunchArgument(
+            'sim',
+            default_value='false',
+            description='Enable holoocean bridge launches when true'
         ),
         OpaqueFunction(function=launch_setup),
     ])
