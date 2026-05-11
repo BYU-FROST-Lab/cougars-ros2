@@ -46,7 +46,7 @@ def generate_launch_description():
     )
     manual_mission_launch_arg = DeclareLaunchArgument(
         'manual_mission',
-        default_value='True'
+        default_value='False'
     )
 
   ### Get launch argument values
@@ -96,15 +96,6 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('fins_manual'))
     )
 
-    # manual mission node — if manual_mission is true, replaces waypoint
-    manual_mission_node = Node(
-        package='cougars_nav',
-        executable='manual_mission.py',
-        parameters=[{ 'vehicle_ns': namespace }, param_file, fleet_param],
-        namespace=namespace,
-        output='log',
-        condition=IfCondition(LaunchConfiguration('manual_mission'))
-    )
 
     setpoint_transformer_node = Node(
         package='cougars_nav',
@@ -130,7 +121,6 @@ def generate_launch_description():
         kinematics_node,
         controls_node,
         fins_manual_node,
-        manual_mission_node,
         setpoint_transformer_node,
     ]
 

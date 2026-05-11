@@ -45,6 +45,8 @@ def launch_setup(context, *args, **kwargs):
         get_package_share_directory('cougars_coms'), 'launch')
     localization_dir = os.path.join(
         get_package_share_directory('cougars_localization'), 'launch')
+    nav_dir = os.path.join(
+        get_package_share_directory('cougars_nav'), 'launch')
     holoocean_bridge_dir = os.path.join(
         get_package_share_directory('holoocean-sensor-bridge'), 'launch')
 
@@ -67,7 +69,7 @@ def launch_setup(context, *args, **kwargs):
 
         launch.actions.IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(control_dir, "waypoint_launch.py")),
+                os.path.join(nav_dir, "waypoint_launch.py")),
             launch_arguments=launch_args),
 
         launch.actions.IncludeLaunchDescription(
