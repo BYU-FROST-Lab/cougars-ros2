@@ -45,6 +45,8 @@ def launch_setup(context, *args, **kwargs):
         get_package_share_directory('cougars_coms'), 'launch')
     localization_dir = os.path.join(
         get_package_share_directory('cougars_localization'), 'launch')
+    holoocean_bridge_dir = os.path.join(
+        get_package_share_directory('holoocean-sensor-bridge'), 'launch')
 
     ### Launch files
     return [
@@ -81,6 +83,14 @@ def launch_setup(context, *args, **kwargs):
         launch.actions.IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(bringup_dir, "bringup_launch.py")),
+            launch_arguments=launch_args),
+        launch.actions.IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(holoocean_bridge_dir, "full_launch.py")),
+            launch_arguments=launch_args),
+        launch.actions.IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(holoocean_bridge_dir, "reverse_launch.py")),
             launch_arguments=launch_args),
     ]
 
