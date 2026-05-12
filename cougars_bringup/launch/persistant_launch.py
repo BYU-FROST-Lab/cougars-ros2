@@ -53,9 +53,12 @@ def generate_launch_description():
         get_package_share_directory('cougars_localization'), 'launch')
     nav_dir = os.path.join(
         get_package_share_directory('cougars_nav'), 'launch')
-    holoocean_bridge_dir = os.path.join(
-        get_package_share_directory('sim_converters'), 'launch')
 
+    try:    
+        holoocean_bridge_dir = os.path.join(
+            get_package_share_directory('sim_converters'), 'launch')
+    except:
+        holoocean_bridge_dir = None
 
 
     ### launch files
@@ -95,17 +98,18 @@ def generate_launch_description():
         launch_arguments=launch_args,
         condition=UnlessCondition(LaunchConfiguration('sim')))
 
-    holoocean_launch = launch.actions.IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(holoocean_bridge_dir, "full_launch.py")),
-        launch_arguments=launch_args,
-        condition=IfCondition(LaunchConfiguration('sim')))
-        
-    holo_bridge_launch = launch.actions.IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(holoocean_bridge_dir, "reverse_launch.py")),
-        launch_arguments=launch_args,
-        condition=IfCondition(LaunchConfiguration('sim')))
+    if holoocean_bridge_dir is not None:
+        holoocean_launch = launch.actions.IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(holoocean_bridge_dir, "full_launch.py")),
+            launch_arguments=launch_args,
+            condition=IfCondition(LaunchConfiguration('sim')))
+            
+        holo_bridge_launch = launch.actions.IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(holoocean_bridge_dir, "reverse_launch.py")),
+            launch_arguments=launch_args,
+            condition=IfCondition(LaunchConfiguration('sim')))
 
 
 
@@ -124,9 +128,13 @@ def generate_launch_description():
         localization_launch,
         sensors_launch,
         bringup_launch,
-        holoocean_launch,
-        holo_bridge_launch
     ]
+
+    if holoocean_bridge_dir is not None:
+        launch_actions.extend([
+            holoocean_launch,
+            holo_bridge_launch
+        ])
 
     return launch.LaunchDescription(launch_actions)
 
