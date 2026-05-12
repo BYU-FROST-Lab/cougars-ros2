@@ -69,6 +69,13 @@ def generate_launch_description():
         parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
         namespace=LaunchConfiguration('namespace'),
     )
+    gps_odom = launch_ros.actions.Node(
+        package='cougars_bridge',
+        executable='gps_odom.py',
+        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
+        namespace=LaunchConfiguration('namespace'),
+        remappings=[('gps_odom', 'state_estimate')] # TODO: remove when add localization
+    )
 
 
     # compile launch actions
@@ -84,8 +91,8 @@ def generate_launch_description():
         depth_converter,
         dvl_converter,
         dvl_global,
-        seatrac_ahrs_convertor
-
+        seatrac_ahrs_convertor,
+        gps_odom
     ]
 
     return launch.LaunchDescription(launch_actions)
