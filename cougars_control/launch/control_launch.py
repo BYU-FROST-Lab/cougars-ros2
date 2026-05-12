@@ -5,7 +5,7 @@ from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, Opaq
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch.conditions import IfCondition, UnlessCondition
 
-import os
+from pathlib import Path
 
 def generate_launch_description():
     '''
@@ -15,30 +15,31 @@ def generate_launch_description():
     - manual_mission: if true, run manual_mission.py instead of waypoint_follower.cpp. fins_manual and manual_mission are NOT related.  fins_manual directly controls the fins, while manual_mission runs a timed mission.
     '''
 
-  ### launch args
+    ### Launch arguments
     namespace_launch_arg = DeclareLaunchArgument(
         'namespace',
         default_value='coug0'
+    )
+    param_file_launch_arg = DeclareLaunchArgument(
+        'param_file',
+        default_value=f'{Path.home()}/config/agent/vehicle_params.yaml'
+    )
+    fleet_param_launch_arg = DeclareLaunchArgument(
+        'fleet_param',
+        default_value=f'{Path.home()}/config/fleet/fleet_params.yaml'
+    )
+    use_sim_time_launch_arg = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='False',
+        description='Use simulation clock if true'
     )
     sim_launch_arg = DeclareLaunchArgument(
         'sim',
         default_value='False'
     )
-    use_sim_time_launch_arg = DeclareLaunchArgument(
-        'use_sim_time',
-        default_value='False'
-    )
     demo_launch_arg = DeclareLaunchArgument(
         'demo',
         default_value='False'
-    )
-    param_file_launch_arg = DeclareLaunchArgument(
-        'param_file',
-        default_value='/home/frostlab/config/agent/vehicle_params.yaml'
-    )
-    fleet_param_launch_arg = DeclareLaunchArgument(
-        'fleet_param',
-        default_value='/home/frostlab/config/fleet/fleet_params.yaml'
     )
     verbose_launch_arg = DeclareLaunchArgument(
         'verbose',

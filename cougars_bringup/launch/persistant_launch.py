@@ -9,6 +9,7 @@ from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python.packages import get_package_share_directory
 
+from pathlib import Path
 
 
 def generate_launch_description():
@@ -20,11 +21,11 @@ def generate_launch_description():
     )
     param_file_launch_arg = DeclareLaunchArgument(
         'param_file',
-        default_value='/home/frostlab/config/agent/vehicle_params.yaml'
+        default_value=f'{Path.home()}/config/agent/vehicle_params.yaml'
     )
     fleet_param_launch_arg = DeclareLaunchArgument(
         'fleet_param',
-        default_value='/home/frostlab/config/fleet/fleet_params.yaml'
+        default_value=f'{Path.home()}/config/fleet/fleet_params.yaml'
     )
     sim_launch_arg = DeclareLaunchArgument(
         'sim',
