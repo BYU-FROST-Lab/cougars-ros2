@@ -16,7 +16,7 @@ def generate_launch_description():
     ### Launch arguments
     namespace_launch_arg = DeclareLaunchArgument(
         'namespace',
-        default_value='coug0'
+        default_value=os.getenv('NAMESPACE', 'coug0')
     )
     param_file_launch_arg = DeclareLaunchArgument(
         'param_file',
