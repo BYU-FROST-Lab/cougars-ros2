@@ -102,14 +102,6 @@ def generate_launch_description():
     )
 
 
-    setpoint_transformer_node = Node(
-        package='cougars_nav',
-        executable='setpoint_transformer.py',
-        name='setpoint_transformer',
-        namespace=namespace,
-        output='log',
-        parameters=[{'use_sim_time': use_sim_time}],
-    )
 
     launch_actions = [
         # launch args
@@ -127,8 +119,7 @@ def generate_launch_description():
         mc_serial_node,
         kinematics_node,
         controls_node,
-        fins_manual_node,
-        setpoint_transformer_node,
+        fins_manual_node
     ]
 
     return launch.LaunchDescription(launch_actions)

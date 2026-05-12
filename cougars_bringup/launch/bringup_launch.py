@@ -2,7 +2,7 @@ import sys
 
 import launch
 import launch_ros.actions
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
 import launch_ros.descriptions
 from launch.substitutions import LaunchConfiguration
 from launch.conditions import IfCondition
@@ -91,6 +91,7 @@ def generate_launch_description():
         param_file_launch_arg,
         fleet_param_launch_arg,
         use_sim_time_launch_arg,
+        OpaqueFunction(function=debug_launch_args),
 
         # launch nodes
         mission_publisher,
@@ -101,3 +102,9 @@ def generate_launch_description():
     ]
 
     return launch.LaunchDescription(launch_actions)
+
+
+def debug_launch_args(context, *args, **kwargs):
+    sim_val = LaunchConfiguration('sim').perform(context)
+    print(f"[DEBUG] sim = {sim_val}")
+    return []
