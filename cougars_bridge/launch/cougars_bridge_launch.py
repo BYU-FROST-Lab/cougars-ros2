@@ -69,12 +69,20 @@ def generate_launch_description():
         parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
         namespace=LaunchConfiguration('namespace'),
     )
+
     gps_odom = launch_ros.actions.Node(
         package='cougars_bridge',
         executable='gps_odom.py',
         parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
         namespace=LaunchConfiguration('namespace'),
         remappings=[('gps_odom', 'state_estimate')] # TODO: remove when add localization
+    )
+
+    static_tf_publisher = launch_ros.actions.Node(
+        package='cougars_bridge',
+        executable='static_tf_publisher',
+        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
+        namespace=LaunchConfiguration('namespace'),
     )
 
 
@@ -92,7 +100,8 @@ def generate_launch_description():
         dvl_converter,
         dvl_global,
         seatrac_ahrs_convertor,
-        gps_odom
+        gps_odom,
+        static_tf_publisher
     ]
 
     return launch.LaunchDescription(launch_actions)

@@ -11,6 +11,8 @@ import time
 import serial
 import math # For atan2, sqrt, degrees
 
+# TODO: outdated??
+
 class NavSatToNmeaNode(Node):
     def __init__(self):
         super().__init__('nmea_converter')
