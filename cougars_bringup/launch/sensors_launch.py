@@ -5,6 +5,7 @@ import launch_ros.descriptions
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch.conditions import IfCondition
+from pathlib import Path
 
 #######################################
 # 
@@ -16,20 +17,17 @@ from launch.conditions import IfCondition
 
 def generate_launch_description():
 
-    # Declare launch arguments
+    ### Declare launch arguments
     namespace_launch_arg = DeclareLaunchArgument(
         'namespace',
-        default_value='',
         description='Namespace for the vehicle'
     )
     param_file_launch_arg = DeclareLaunchArgument(
         'param_file',
-        default_value='/home/frostlab/config/agent/vehicle_params.yaml',
         description='Path to the vehicle parameter file'
     )
     fleet_param_launch_arg = DeclareLaunchArgument(
-        'fleet_param',
-        default_value='/home/frostlab/config/fleet/fleet_params.yaml',          
+        'fleet_param',       
         description='Path to the fleet parameter file'
     )
     use_sim_time_launch_arg = DeclareLaunchArgument(
@@ -53,6 +51,11 @@ def generate_launch_description():
         default_value='true',
         description='Launch Seatrac acoustic modem node'
     )
+    use_pressure_launch_arg = DeclareLaunchArgument(
+        'use_pressure',
+        default_value='true',
+        description='Launch pressure sensor and depth converter nodes'
+    )
 
     use_sim_time = LaunchConfiguration('use_sim_time')
 
@@ -60,14 +63,18 @@ def generate_launch_description():
     dvl_node = launch_ros.actions.Node(
         package='dvl_a50',
         executable='dvl_a50_sensor',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
+        parameters=[LaunchConfiguration('param_file'), 
+                    LaunchConfiguration('fleet_param'), 
+                    {'use_sim_time': use_sim_time}],
         namespace=LaunchConfiguration('namespace'),
         condition=IfCondition(LaunchConfiguration('use_dvl')),
     )
     dvl_manager = launch_ros.actions.Node(
         package='cougars_bridge',
         executable='dvl_manager.py',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
+        parameters=[LaunchConfiguration('param_file'), 
+                    LaunchConfiguration('fleet_param'), 
+                    {'use_sim_time': use_sim_time}],
         namespace=LaunchConfiguration('namespace'),
         condition=IfCondition(LaunchConfiguration('use_dvl')),
     )
@@ -75,10 +82,31 @@ def generate_launch_description():
     seatrac_node = launch_ros.actions.Node(
         package='seatrac',
         executable='modem',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
+        parameters=[LaunchConfiguration('param_file'), 
+                    LaunchConfiguration('fleet_param'), 
+                    {'use_sim_time': use_sim_time}],
         namespace=LaunchConfiguration('namespace'),
         output='log',
         condition=IfCondition(LaunchConfiguration('acoms_on')),
+    )
+
+    pressure_pub_node = launch_ros.actions.Node(
+        package='pressure_sensor',
+        executable='pressure_pub',
+        parameters=[LaunchConfiguration('param_file'), 
+                    LaunchConfiguration('fleet_param'), 
+                    {'use_sim_time': use_sim_time}],
+        namespace=LaunchConfiguration('namespace'),
+        condition=IfCondition(LaunchConfiguration('use_pressure')),
+    )
+    pressure_to_depth_node = launch_ros.actions.Node(
+        package='pressure_sensor',
+        executable='pressure_to_depth',
+        parameters=[LaunchConfiguration('param_file'), 
+                    LaunchConfiguration('fleet_param'), 
+                    {'use_sim_time': use_sim_time}],
+        namespace=LaunchConfiguration('namespace'),
+        condition=IfCondition(LaunchConfiguration('use_pressure')),
     )
 
     gps_node_container = launch_ros.actions.ComposableNodeContainer(
@@ -126,12 +154,15 @@ def generate_launch_description():
         use_dvl_launch_arg,
         use_gps_launch_arg,
         use_acoustics_launch_arg,
+        use_pressure_launch_arg,
 
         # launch nodes
         dvl_node,
         dvl_manager,
         seatrac_node,
-        gps_node_container
+        gps_node_container,
+        pressure_pub_node,
+        pressure_to_depth_node
     ]
 
     return launch.LaunchDescription(launch_actions)

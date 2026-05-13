@@ -8,6 +8,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python.packages import get_package_share_directory
 
 import os
+from pathlib import Path
 
 #########################################
 # 
@@ -20,21 +21,18 @@ import os
 
 def generate_launch_description():
 
-    # Declare launch arguments
+    ### Launch arguments
     namespace_launch_arg = DeclareLaunchArgument(
         'namespace',
-        default_value="coug0",
-        description='Namespace for the vehicle'
+        default_value='coug0'
     )
     param_file_launch_arg = DeclareLaunchArgument(
         'param_file',
-        default_value="/home/frostlab/config/agent/vehicle_config.yaml",
-        description='Path to the vehicle parameter file'
+        default_value=f'{Path.home()}/config/agent/vehicle_params.yaml'
     )
     fleet_param_launch_arg = DeclareLaunchArgument(
         'fleet_param',
-        default_value="/home/frostlab/config/fleet/fleet_params.yaml",
-        description='Path to the fleet parameter file'
+        default_value=f'{Path.home()}/config/fleet/fleet_params.yaml'
     )
     use_sim_time_launch_arg = DeclareLaunchArgument(
         'use_sim_time',
@@ -70,6 +68,21 @@ def generate_launch_description():
         namespace=LaunchConfiguration('namespace'),
     )
 
+    gps_odom = launch_ros.actions.Node(
+        package='cougars_bridge',
+        executable='gps_odom.py',
+        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
+        namespace=LaunchConfiguration('namespace'),
+        remappings=[('gps_odom', 'state_estimate')] # TODO: remove when add localization
+    )
+
+    static_tf_publisher = launch_ros.actions.Node(
+        package='cougars_bridge',
+        executable='static_tf_publisher',
+        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
+        namespace=LaunchConfiguration('namespace'),
+    )
+
 
     # compile launch actions
     launch_actions = [
@@ -84,8 +97,9 @@ def generate_launch_description():
         depth_converter,
         dvl_converter,
         dvl_global,
-        seatrac_ahrs_convertor
-
+        seatrac_ahrs_convertor,
+        gps_odom,
+        static_tf_publisher
     ]
 
     return launch.LaunchDescription(launch_actions)

@@ -2,7 +2,7 @@ import sys
 
 import launch
 import launch_ros.actions
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
 import launch_ros.descriptions
 from launch.substitutions import LaunchConfiguration
 from launch.conditions import IfCondition
@@ -11,6 +11,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python.packages import get_package_share_directory
 
 import os
+from pathlib import Path
 
 # 
 # Runs the rec
@@ -25,15 +26,16 @@ def generate_launch_description():
     )
     param_file_launch_arg = DeclareLaunchArgument(
         'param_file',
-        default_value='/home/frostlab/config/agent/vehicle_params.yaml'
-    )
-    use_sim_time_launch_arg = DeclareLaunchArgument(
-        'use_sim_time',
-        default_value='False'
+        default_value=f'{Path.home()}/config/agent/vehicle_params.yaml'
     )
     fleet_param_launch_arg = DeclareLaunchArgument(
         'fleet_param',
-        default_value='/home/frostlab/config/fleet/fleet_params.yaml'
+        default_value=f'{Path.home()}/config/fleet/fleet_params.yaml'
+    )
+    use_sim_time_launch_arg = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='False',
+        description='Use simulation clock if true'
     )
 
     ### Launch Nodes
@@ -91,6 +93,7 @@ def generate_launch_description():
         param_file_launch_arg,
         fleet_param_launch_arg,
         use_sim_time_launch_arg,
+        OpaqueFunction(function=debug_launch_args),
 
         # launch nodes
         mission_publisher,
@@ -101,3 +104,9 @@ def generate_launch_description():
     ]
 
     return launch.LaunchDescription(launch_actions)
+
+
+def debug_launch_args(context, *args, **kwargs):
+    sim_val = LaunchConfiguration('sim').perform(context)
+    print(f"[DEBUG] sim = {sim_val}")
+    return []

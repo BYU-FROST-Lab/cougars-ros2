@@ -2,6 +2,7 @@
 
 
 import os
+from pathlib import Path
 from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument
@@ -9,22 +10,21 @@ from launch.substitutions import LaunchConfiguration
 from launch.conditions import IfCondition
 
 def generate_launch_description():
-    # Launch arguments
-    namespace_arg = DeclareLaunchArgument(
-        'namespace', 
-        default_value='coug0',
-        description='Vehicle namespace (e.g., coug0)'
+
+    ### Launch arguments
+    namespace_launch_arg = DeclareLaunchArgument(
+        'namespace',
+        default_value='coug0'
     )
-    
-    param_file_arg = DeclareLaunchArgument(
+    param_file_launch_arg = DeclareLaunchArgument(
         'param_file',
-        default_value='/home/frostlab/config/agent/vehicle_params.yaml'
+        default_value=f'{Path.home()}/config/agent/vehicle_params.yaml'
     )
-    fleet_param_arg = DeclareLaunchArgument(
+    fleet_param_launch_arg = DeclareLaunchArgument(
         'fleet_param',
-        default_value='/home/frostlab/config/fleet/fleet_params.yaml'
+        default_value=f'{Path.home()}/config/fleet/fleet_params.yaml'
     )
-    use_sim_time_arg = DeclareLaunchArgument(
+    use_sim_time_launch_arg = DeclareLaunchArgument(
         'use_sim_time',
         default_value='False',
         description='Use simulation clock if true'
@@ -82,10 +82,10 @@ def generate_launch_description():
 
     launch_actions = [
         # launch args
-        namespace_arg,
-        param_file_arg,
-        fleet_param_arg,
-        use_sim_time_arg,
+        namespace_launch_arg,
+        param_file_launch_arg,
+        fleet_param_launch_arg,
+        use_sim_time_launch_arg,
         acoustic_ping_arg,
         debug_arg,
 

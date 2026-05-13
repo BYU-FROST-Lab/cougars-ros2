@@ -9,32 +9,37 @@ from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python.packages import get_package_share_directory
 
+from pathlib import Path
 
-def launch_setup(context, *args, **kwargs):
-    """
-    Resolves launch arguments and constructs the child launch file actions.
 
-    Called at launch time via OpaqueFunction, which allows LaunchConfiguration
-    values to be resolved to real Python strings via .perform(context). This is
-    necessary because the 'flags' argument must be parsed into individual
-    key-value pairs before being forwarded to child launch files.
+def generate_launch_description():
 
-    All child launch files receive the same launch_args, which includes the
-    base arguments (namespace, param_file, fleet_param, flags) plus any
-    additional arguments parsed from the flags string.
-    """
+    ### Launch arguments
+    namespace_launch_arg = DeclareLaunchArgument(
+        'namespace',
+        default_value=os.getenv('NAMESPACE', 'coug0')
+    )
+    param_file_launch_arg = DeclareLaunchArgument(
+        'param_file',
+        default_value=f'{Path.home()}/config/agent/vehicle_params.yaml'
+    )
+    fleet_param_launch_arg = DeclareLaunchArgument(
+        'fleet_param',
+        default_value=f'{Path.home()}/config/fleet/fleet_params.yaml'
+    )
+    sim_launch_arg = DeclareLaunchArgument(
+        'sim',
+        default_value='False'
+    )
 
-    ### Build launch_args with parsed flags
     launch_args = [
-        ('namespace',   LaunchConfiguration('namespace').perform(context)),
-        ('param_file',  LaunchConfiguration('param_file').perform(context)),
-        ('fleet_param', LaunchConfiguration('fleet_param').perform(context)),
-        ('use_sim_time', LaunchConfiguration('sim').perform(context)),
-        ('flags',       LaunchConfiguration('flags').perform(context)),
+        ('namespace',   LaunchConfiguration('namespace')),
+        ('param_file',  LaunchConfiguration('param_file')),
+        ('fleet_param', LaunchConfiguration('fleet_param')),
+        ('use_sim_time', LaunchConfiguration('sim'))
     ]
 
-    flags = parse_flags(LaunchConfiguration('flags').perform(context))
-    launch_args.extend(flags.items())
+
 
     ### Package launch directories
     bridge_dir = os.path.join(
@@ -49,117 +54,88 @@ def launch_setup(context, *args, **kwargs):
         get_package_share_directory('cougars_localization'), 'launch')
     nav_dir = os.path.join(
         get_package_share_directory('cougars_nav'), 'launch')
-    holoocean_bridge_dir = os.path.join(
-        get_package_share_directory('sim_converters'), 'launch')
+
+    try:    
+        holoocean_bridge_dir = os.path.join(
+            get_package_share_directory('sim_converters'), 'launch')
+    except:
+        holoocean_bridge_dir = None
 
 
-    ### Launch files
-    return [
-        launch.actions.IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(bridge_dir, "cougars_bridge_launch.py")),
-            launch_arguments=launch_args),
+    ### launch files
+    bridge_launch = launch.actions.IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(bridge_dir, "cougars_bridge_launch.py")),
+        launch_arguments=launch_args)
 
-        launch.actions.IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(coms_dir, "coms_launch.py")),
-            launch_arguments=launch_args),
+    coms_launch = launch.actions.IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(coms_dir, "coms_launch.py")),
+        launch_arguments=launch_args)
 
-        launch.actions.IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(control_dir, "control_launch.py")),
-            launch_arguments=launch_args),
+    control_launch = launch.actions.IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(control_dir, "control_launch.py")),
+        launch_arguments=launch_args)
 
-        launch.actions.IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(nav_dir, "waypoint_launch.py")),
-            launch_arguments=launch_args),
+    waypoint_launch = launch.actions.IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(nav_dir, "waypoint_launch.py")),
+        launch_arguments=launch_args)
 
-        launch.actions.IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(localization_dir, "cougars_localization_launch.py")),
-            launch_arguments=launch_args),
+    localization_launch = launch.actions.IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(localization_dir, "cougars_localization_launch.py")),
+        launch_arguments=launch_args)
 
-        launch.actions.IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(bringup_dir, "sensors_launch.py")),
-            launch_arguments=launch_args,
-            condition=UnlessCondition(LaunchConfiguration('sim'))
-        ),
+    bringup_launch = launch.actions.IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(bringup_dir, "bringup_launch.py")),
+        launch_arguments=launch_args)
 
-        launch.actions.IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(bringup_dir, "bringup_launch.py")),
-            launch_arguments=launch_args),
+    sensors_launch = launch.actions.IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(bringup_dir, "sensors_launch.py")),
+        launch_arguments=launch_args,
+        condition=UnlessCondition(LaunchConfiguration('sim')))
 
-        launch.actions.IncludeLaunchDescription(
+    if holoocean_bridge_dir is not None:
+        holoocean_launch = launch.actions.IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(holoocean_bridge_dir, "full_launch.py")),
-            launch_arguments=launch_args),
+            launch_arguments=launch_args,
+            condition=IfCondition(LaunchConfiguration('sim')))
             
-        launch.actions.IncludeLaunchDescription(
+        holo_bridge_launch = launch.actions.IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(holoocean_bridge_dir, "reverse_launch.py")),
             launch_arguments=launch_args,
-            condition=IfCondition(LaunchConfiguration('sim'))),
-            
+            condition=IfCondition(LaunchConfiguration('sim')))
+
+
+
+    launch_actions = [
+        # launch args
+        namespace_launch_arg,
+        param_file_launch_arg,
+        fleet_param_launch_arg,
+        sim_launch_arg,
+
+        # launch files
+        bridge_launch,
+        coms_launch,
+        control_launch,
+        waypoint_launch,
+        localization_launch,
+        sensors_launch,
+        bringup_launch,
     ]
 
+    if holoocean_bridge_dir is not None:
+        launch_actions.extend([
+            holoocean_launch,
+            holo_bridge_launch
+        ])
 
-def generate_launch_description():
-    # TODO get home directory instead of hardcoding /home/frostlab
-    return launch.LaunchDescription([
-        DeclareLaunchArgument(
-            'namespace',
-            default_value='coug0',
-            description='Namespace for the vehicle'
-        ),
-        DeclareLaunchArgument(
-            'param_file',
-            default_value='/home/frostlab/config/agent/vehicle_params.yaml',
-            description='Path to the vehicle parameter file'
-        ),
-        DeclareLaunchArgument(
-            'sim',
-            default_value='False',
-            description='Whether to launch in simulation mode'
-        ),
-        DeclareLaunchArgument(
-            'fleet_param',
-            default_value='/home/frostlab/config/fleet/fleet_params.yaml',
-            description='Path to the fleet parameter file'
-        ),
-        DeclareLaunchArgument(
-            'flags',
-            default_value='',
-            description='Comma-separated list of launch argument overrides.'
-        ),
-        OpaqueFunction(function=launch_setup),
-    ])
+    return launch.LaunchDescription(launch_actions)
 
-
-def parse_flags(flag_str: str) -> dict[str, str]:
-    """
-    Parses a comma-separated string of key:value pairs into a dict of strings.
-
-    Example input: "use_gps:false,use_navigation:true,verbosity_level:5"
-
-    Values are kept as strings, as they will be passed directly to child
-    launch files as launch arguments. Bare keys (no value) are set to "true".
-    """
-    result = {}
-    if not flag_str:
-        return result
-
-    for item in flag_str.split(","):
-        item = item.strip()
-        if not item:
-            continue
-
-        if ":" in item:
-            k, v = item.split(":", 1)
-            result[k.strip()] = v.strip()
-        else:
-            result[item] = "true"
-
-    return result
