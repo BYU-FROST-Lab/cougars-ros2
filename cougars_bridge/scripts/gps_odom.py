@@ -6,7 +6,6 @@ from gps_msgs.msg import GPSFix
 from sensor_msgs.msg import NavSatFix
 from nav_msgs.msg import Odometry
 from geographic_msgs.msg import GeoPoint
-from message_filters import Subscriber, ApproximateTimeSynchronizer
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
 import math
 
@@ -42,20 +41,15 @@ class NavSatFixToOdom(Node):
         )
         self.origin_sub = self.create_subscription(GeoPoint, 'origin', self.origin_callback, origin_qos)
 
-        # Subscribe to NavSatFix
-        self.fix_sub = Subscriber(self, NavSatFix, 'fix')
+        # Subscribe to NavSatFix and GPSFix separately and cache the latest NavSatFix
+        self.last_fix_msg = None
+        self.last_fix_time_ns = None
+        # maximum allowed age of cached covariance (seconds)
+        self.fix_cov_max_age = 3.0
 
-        # Subscribe to GPSFix to get covariance
-        self.extended_fix_sub = Subscriber(self, GPSFix, 'extended_fix')
-
-        # Message synchronizer enabling callback to use both fix and extended fix
-        # This approch is necessary because currently covariance is only in the fix message, not extended fix
-        self.ts = ApproximateTimeSynchronizer(
-            [self.extended_fix_sub, self.fix_sub],
-            queue_size=10,
-            slop=0.001
-        )
-        self.ts.registerCallback(self.gps_callback)
+        # standard rclpy subscriptions (no message_filters)
+        self.create_subscription(NavSatFix, 'fix', self.fix_callback, 10)
+        self.create_subscription(GPSFix, 'extended_fix', self.extended_fix_callback, 10)
 
         self.min_sats = 5  # Minimum number of satellites
 
@@ -68,7 +62,12 @@ class NavSatFixToOdom(Node):
             f"Received origin: lat={msg.latitude}, lon={msg.longitude}, alt={msg.altitude}"
         )
 
-    def gps_callback(self, extended_msg: GPSFix, fix_msg: NavSatFix):
+    def fix_callback(self, msg: NavSatFix):
+        # cache the latest NavSatFix (for covariance)
+        self.last_fix_msg = msg
+        self.last_fix_time_ns = self.get_clock().now().nanoseconds
+
+    def extended_fix_callback(self, extended_msg: GPSFix):
         '''
         Callback function for the GPSFix subscription.
         Converts the GPS data to Odometry messages and publishes them.
@@ -96,7 +95,7 @@ class NavSatFixToOdom(Node):
             extended_msg.longitude
         )
 
-        # Access the altitude (z) value from the NavSatFix message
+        # Access the altitude (z) value from the GPSFix message
         z = extended_msg.altitude - self.origin.altitude
 
         # Fill in the odometry message
@@ -108,10 +107,18 @@ class NavSatFixToOdom(Node):
         odom.pose.pose.position.y = y
         odom.pose.pose.position.z = z  # Use the altitude as the z-value
 
-        # Set the covariance values for x, y, and z
-        odom.pose.covariance[0] = fix_msg.position_covariance[0]  # xx
-        odom.pose.covariance[7] = fix_msg.position_covariance[4]  # yy
-        odom.pose.covariance[14] = fix_msg.position_covariance[8]  # zz
+        # Populate covariance from the most recent NavSatFix if available and recent
+        if self.last_fix_msg is not None and self.last_fix_time_ns is not None:
+            age_s = (self.get_clock().now().nanoseconds - self.last_fix_time_ns) / 1e9
+            if age_s <= self.fix_cov_max_age:
+                cov = self.last_fix_msg.position_covariance
+                odom.pose.covariance[0] = cov[0]  # xx
+                odom.pose.covariance[7] = cov[4]  # yy
+                odom.pose.covariance[14] = cov[8]  # zz
+            else:
+                self.get_logger().warn(f"Cached fix too old ({age_s:.1f}s), publishing without covariance", throttle_duration_sec=10)
+        else:
+            self.get_logger().warn("No cached NavSatFix available, publishing without covariance", throttle_duration_sec=10)
 
         # Publish the odometry message
         self.publisher.publish(odom)
