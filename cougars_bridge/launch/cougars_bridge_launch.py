@@ -35,12 +35,12 @@ def generate_launch_description():
         default_value=f'{Path.home()}/config/fleet/fleet_params.yaml'
     )
     use_sim_time_launch_arg = DeclareLaunchArgument(
-        'use_sim_time',
+        'sim',
         default_value='False',
         description='Use simulation clock if true'
     )
 
-    use_sim_time = LaunchConfiguration('use_sim_time')
+    use_sim_time = LaunchConfiguration('sim')
 
     # declare nodes
     depth_converter = launch_ros.actions.Node(

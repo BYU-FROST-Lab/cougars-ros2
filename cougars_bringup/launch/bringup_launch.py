@@ -32,15 +32,16 @@ def generate_launch_description():
         'fleet_param',
         default_value=f'{Path.home()}/config/fleet/fleet_params.yaml'
     )
-    use_sim_time_launch_arg = DeclareLaunchArgument(
-        'use_sim_time',
+    sim_launch_arg = DeclareLaunchArgument(
+        'sim',
         default_value='False',
         description='Use simulation clock if true'
     )
 
     ### Launch Nodes
-    use_sim_time = LaunchConfiguration('use_sim_time')
+    sim = LaunchConfiguration('sim')
 
+    # TODO Add this back when it has a subscriber for loading a specific mission
     mission_publisher = launch_ros.actions.Node(
         package='cougars_bringup',
         executable='mission_publisher.py',
@@ -49,7 +50,7 @@ def generate_launch_description():
             {'namespace': LaunchConfiguration('namespace')},
             LaunchConfiguration('param_file'),
             LaunchConfiguration('fleet_param'),
-            {'use_sim_time': use_sim_time}
+            {'use_sim_time': sim}
         ],
         namespace=LaunchConfiguration('namespace'),
         output='log',
@@ -58,7 +59,7 @@ def generate_launch_description():
         package='cougars_bringup',
         executable='origin_publisher.py',
         name='origin_publisher',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
+        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': sim}],
         namespace=LaunchConfiguration('namespace'),
         output='log',
     )
@@ -66,7 +67,7 @@ def generate_launch_description():
         package='cougars_bringup',
         executable='bag_recorder',
         name='bag_recorder',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
+        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': sim}],
         namespace=LaunchConfiguration('namespace'),
         output='log',
     )
@@ -74,7 +75,7 @@ def generate_launch_description():
         package='diagnostic_common_diagnostics',
         executable='cpu_monitor.py', 
         namespace=LaunchConfiguration('namespace'),
-        parameters=[{'use_sim_time': use_sim_time}],
+        parameters=[{'use_sim_time': sim}],
         output='log',
         remappings=[('/diagnostics', 'diagnostics')],   # remap to a relative topic that can be namespaced
     )
@@ -83,7 +84,7 @@ def generate_launch_description():
         executable='ram_monitor.py',
         namespace=LaunchConfiguration('namespace'),
         remappings=[('/diagnostics', 'diagnostics')],    # remap to a relative topic that can be namespaced
-        parameters=[{'use_sim_time': use_sim_time}],
+        parameters=[{'use_sim_time': sim}],
         output='log',
     )
 
@@ -92,11 +93,11 @@ def generate_launch_description():
         namespace_launch_arg,
         param_file_launch_arg,
         fleet_param_launch_arg,
-        use_sim_time_launch_arg,
+        sim_launch_arg,
         OpaqueFunction(function=debug_launch_args),
 
         # launch nodes
-        mission_publisher,
+        # mission_publisher,
         origin_publisher,
         bag_recorder,
         cpu_monitor,

@@ -1,7 +1,7 @@
 import os
 import launch
 import launch_ros.actions
-from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, OpaqueFunction, IncludeLaunchDescription
 import launch_ros.descriptions
 from launch.substitutions import LaunchConfiguration
 from launch.conditions import IfCondition, UnlessCondition
@@ -63,50 +63,44 @@ def generate_launch_description():
 
 
     ### launch files
-    bridge_launch = launch.actions.IncludeLaunchDescription(
+    bridge_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(bridge_dir, "cougars_bridge_launch.py")),
         launch_arguments=launch_args)
 
-    coms_launch = launch.actions.IncludeLaunchDescription(
+    coms_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(coms_dir, "coms_launch.py")),
         launch_arguments=launch_args)
 
-    control_launch = launch.actions.IncludeLaunchDescription(
+    control_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(control_dir, "control_launch.py")),
         launch_arguments=launch_args)
 
-    waypoint_launch = launch.actions.IncludeLaunchDescription(
+    waypoint_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(nav_dir, "waypoint_launch.py")),
         launch_arguments=launch_args)
 
-    localization_launch = launch.actions.IncludeLaunchDescription(
+    localization_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(localization_dir, "cougars_localization_launch.py")),
         launch_arguments=launch_args)
 
-    bringup_launch = launch.actions.IncludeLaunchDescription(
+    bringup_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(bringup_dir, "bringup_launch.py")),
         launch_arguments=launch_args)
 
-    sensors_launch = launch.actions.IncludeLaunchDescription(
+    sensors_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(bringup_dir, "sensors_launch.py")),
         launch_arguments=launch_args,
         condition=UnlessCondition(LaunchConfiguration('sim')))
 
     if holoocean_bridge_dir is not None:
-        holoocean_launch = launch.actions.IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(holoocean_bridge_dir, "full_launch.py")),
-            launch_arguments=launch_args,
-            condition=IfCondition(LaunchConfiguration('sim')))
-            
-        holo_bridge_launch = launch.actions.IncludeLaunchDescription(
+        holo_bridge_launch = IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(holoocean_bridge_dir, "reverse_launch.py")),
             launch_arguments=launch_args,
@@ -133,7 +127,6 @@ def generate_launch_description():
 
     if holoocean_bridge_dir is not None:
         launch_actions.extend([
-            holoocean_launch,
             holo_bridge_launch
         ])
 
