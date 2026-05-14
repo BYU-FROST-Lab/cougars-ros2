@@ -145,6 +145,7 @@ def generate_launch_description():
         use_dvl_launch_arg,
         use_gps_launch_arg,
         use_acoustics_launch_arg,
+        use_pressure_launch_arg,
 
         # launch nodes
         dvl_node,
