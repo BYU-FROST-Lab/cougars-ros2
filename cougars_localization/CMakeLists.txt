@@ -29,56 +29,10 @@ find_package(visualization_msgs REQUIRED)
 
 include_directories(include/${PROJECT_NAME})
 
-add_executable(depth_convertor src/depth_convertor.cpp)
-ament_target_dependencies(depth_convertor rclcpp std_msgs std_srvs cougars_interfaces geometry_msgs sensor_msgs)
-
-add_executable(dvl_convertor src/dvl_convertor.cpp)
-ament_target_dependencies(dvl_convertor rclcpp std_msgs cougars_interfaces geometry_msgs dvl_msgs)
-
-add_executable(seatrac_ahrs_convertor src/seatrac_ahrs_convertor.cpp)
-ament_target_dependencies(
-  seatrac_ahrs_convertor 
-  rclcpp 
-  std_msgs 
-  seatrac_interfaces
-  geometry_msgs
-  sensor_msgs
-  tf2_ros
-  tf2_geometry_msgs
-  visualization_msgs
-)
-
-add_executable(dvl_global src/dvl_global.cpp)
-ament_target_dependencies(dvl_global rclcpp std_msgs geometry_msgs tf2_ros tf2_geometry_msgs)
-
-add_executable(static_tf_publisher src/static_tf_publisher.cpp)
-ament_target_dependencies(static_tf_publisher rclcpp std_msgs geometry_msgs tf2_ros tf2_geometry_msgs)
-
-# Link libraries
-target_link_libraries(depth_convertor)
-target_link_libraries(dvl_convertor)
-target_link_libraries(seatrac_ahrs_convertor)
-target_link_libraries(dvl_global)
-
-# Install executables
-install(TARGETS
-  depth_convertor
-  dvl_convertor
-  seatrac_ahrs_convertor
-  dvl_global
-  static_tf_publisher
-  DESTINATION lib/${PROJECT_NAME})
-
-# Install Python modules
-# ament_python_install_package(${PROJECT_NAME})
-
 # Install Python executables
 install(PROGRAMS
   scripts/factor_graph.py
-  scripts/gps_odom.py
-  scripts/dvl_manager.py
-  scripts/nmea_constructor.py
-  scripts/mavlink_bridge.py
+  scripts/raw_state_estimate.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
