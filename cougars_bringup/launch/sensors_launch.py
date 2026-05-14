@@ -51,6 +51,11 @@ def generate_launch_description():
         default_value='true',
         description='Launch Seatrac acoustic modem node'
     )
+    use_pressure_launch_arg = DeclareLaunchArgument(
+        'use_pressure',
+        default_value='true',
+        description='Launch pressure sensor and depth converter nodes'
+    )
 
     use_sim_time = LaunchConfiguration('use_sim_time')
 
