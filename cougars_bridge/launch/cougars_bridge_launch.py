@@ -72,8 +72,7 @@ def generate_launch_description():
         package='cougars_bridge',
         executable='gps_odom.py',
         parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
-        namespace=LaunchConfiguration('namespace'),
-        remappings=[('gps_odom', 'state_estimate')] # TODO: remove when add localization
+        namespace=LaunchConfiguration('namespace')
     )
 
     static_tf_publisher = launch_ros.actions.Node(
