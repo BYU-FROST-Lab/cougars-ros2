@@ -51,11 +51,6 @@ def generate_launch_description():
         default_value='true',
         description='Launch Seatrac acoustic modem node'
     )
-    use_pressure_launch_arg = DeclareLaunchArgument(
-        'use_pressure',
-        default_value='true',
-        description='Launch pressure sensor and depth converter nodes'
-    )
 
     use_sim_time = LaunchConfiguration('use_sim_time')
 
@@ -90,15 +85,6 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('acoms_on')),
     )
 
-    pressure_pub_node = launch_ros.actions.Node(
-        package='pressure_sensor',
-        executable='pressure_pub',
-        parameters=[LaunchConfiguration('param_file'), 
-                    LaunchConfiguration('fleet_param'), 
-                    {'use_sim_time': use_sim_time}],
-        namespace=LaunchConfiguration('namespace'),
-        condition=IfCondition(LaunchConfiguration('use_pressure')),
-    )
     pressure_to_depth_node = launch_ros.actions.Node(
         package='pressure_sensor',
         executable='pressure_to_depth',
@@ -154,14 +140,12 @@ def generate_launch_description():
         use_dvl_launch_arg,
         use_gps_launch_arg,
         use_acoustics_launch_arg,
-        use_pressure_launch_arg,
 
         # launch nodes
         dvl_node,
         dvl_manager,
         seatrac_node,
         gps_node_container,
-        pressure_pub_node,
         pressure_to_depth_node
     ]
 
