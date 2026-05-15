@@ -7,7 +7,7 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, UnlessCondition
 
 def generate_launch_description():
 
@@ -24,8 +24,8 @@ def generate_launch_description():
         'fleet_param',
         default_value=f'{Path.home()}/config/fleet/fleet_params.yaml'
     )
-    use_sim_time_launch_arg = DeclareLaunchArgument(
-        'use_sim_time',
+    sim_launch_arg = DeclareLaunchArgument(
+        'sim',
         default_value='False',
         description='Use simulation clock if true'
     )
@@ -46,7 +46,7 @@ def generate_launch_description():
     namespace = LaunchConfiguration('namespace')
     param_file = LaunchConfiguration('param_file')
     fleet_param = LaunchConfiguration('fleet_param')
-    use_sim_time = LaunchConfiguration('use_sim_time')
+    sim = LaunchConfiguration('sim')
     acoustic_ping = LaunchConfiguration('acoustic_pinger')
     debug = LaunchConfiguration('debug')
 
@@ -54,7 +54,7 @@ def generate_launch_description():
     cougars_coms_node = Node(
         package='cougars_coms',
         executable='cougars_coms',
-        parameters=[param_file, fleet_param, {'use_sim_time': use_sim_time}],
+        parameters=[param_file, fleet_param, {'use_sim_time': sim}],
         namespace=namespace
     )
 
@@ -66,16 +66,17 @@ def generate_launch_description():
         parameters=[
             param_file, fleet_param,
             {'debug_mode': debug},
-            {'use_sim_time': use_sim_time}
+            {'use_sim_time': sim}
         ],
         output='screen',
-        emulate_tty=True
+        emulate_tty=True,
+        condition=UnlessCondition(sim)
     )
 
     vehicle_pinger_node = Node(
         package='cougars_coms',
         executable='vehicle_pinger',
-        parameters=[param_file, fleet_param, {'use_sim_time': use_sim_time}],
+        parameters=[param_file, fleet_param, {'use_sim_time': sim}],
         condition=IfCondition(acoustic_ping),
     )
 
@@ -85,7 +86,7 @@ def generate_launch_description():
         namespace_launch_arg,
         param_file_launch_arg,
         fleet_param_launch_arg,
-        use_sim_time_launch_arg,
+        sim_launch_arg,
         acoustic_ping_arg,
         debug_arg,
 

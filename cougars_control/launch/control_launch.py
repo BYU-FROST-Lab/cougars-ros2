@@ -28,11 +28,6 @@ def generate_launch_description():
         'fleet_param',
         default_value=f'{Path.home()}/config/fleet/fleet_params.yaml'
     )
-    use_sim_time_launch_arg = DeclareLaunchArgument(
-        'use_sim_time',
-        default_value='False',
-        description='Use simulation clock if true'
-    )
     sim_launch_arg = DeclareLaunchArgument(
         'sim',
         default_value='False'
@@ -54,20 +49,20 @@ def generate_launch_description():
         default_value='False'
     )
 
-  ### Get launch argument values
+    ### Get launch argument values
     namespace = LaunchConfiguration('namespace')
     param_file = LaunchConfiguration('param_file')
     fleet_param = LaunchConfiguration('fleet_param')
-    use_sim_time = LaunchConfiguration('use_sim_time')
+    sim = LaunchConfiguration('sim')
 
 
-  ### Node definitions
+    ### Node definitions
 
     # initialize communication with teensy
     mc_serial_node = Node(
         package='cougars_control',
         executable='mc_serial_node',
-        parameters=[param_file, fleet_param, {'use_sim_time': use_sim_time}],
+        parameters=[param_file, fleet_param, {'use_sim_time': sim}],
         namespace=namespace,
         output='log',
         condition=UnlessCondition(LaunchConfiguration('sim'))
@@ -77,7 +72,7 @@ def generate_launch_description():
     kinematics_node = Node(
         package='cougars_control',
         executable='coug_kinematics',
-        parameters=[param_file, fleet_param, {'use_sim_time': use_sim_time}],
+        parameters=[param_file, fleet_param, {'use_sim_time': sim}],
         namespace=namespace,
         output='log',
     )
@@ -85,7 +80,7 @@ def generate_launch_description():
     controls_node = Node(
         package='cougars_control',
         executable='coug_controls',
-        parameters=[param_file, fleet_param, {'use_sim_time': use_sim_time}],
+        parameters=[param_file, fleet_param, {'use_sim_time': sim}],
         namespace=namespace,
         output='log',
         condition=UnlessCondition(LaunchConfiguration('fins_manual'))
@@ -95,7 +90,7 @@ def generate_launch_description():
     fins_manual_node = Node(
         package='cougars_control',
         executable='fins_manual.py',
-        parameters=[param_file, fleet_param, {'use_sim_time': use_sim_time}],
+        parameters=[param_file, fleet_param, {'use_sim_time': sim}],
         namespace=namespace,
         output='log',
         emulate_tty=True,
@@ -108,7 +103,6 @@ def generate_launch_description():
         # launch args
         namespace_launch_arg,
         sim_launch_arg,
-        use_sim_time_launch_arg,
         demo_launch_arg,
         param_file_launch_arg,
         fleet_param_launch_arg,

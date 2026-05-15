@@ -24,19 +24,19 @@ def generate_launch_description():
         default_value=f'{Path.home()}/config/fleet/fleet_params.yaml'
     )
     use_sim_time_launch_arg = DeclareLaunchArgument(
-        'use_sim_time',
+        'sim',
         default_value='False',
         description='Use simulation clock if true'
     )
 
-    use_sim_time = LaunchConfiguration('use_sim_time')
+    sim = LaunchConfiguration('sim')
 
     raw_state_estimate = launch_ros.actions.Node(
         package='cougars_localization',
         executable='raw_state_estimate.py',
         parameters=[LaunchConfiguration('param_file'), 
                     LaunchConfiguration('fleet_param'), 
-                    {'use_sim_time': use_sim_time}],
+                    {'use_sim_time': sim}],
         namespace=LaunchConfiguration('namespace')
     )
 

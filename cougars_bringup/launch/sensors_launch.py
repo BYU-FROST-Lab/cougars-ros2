@@ -30,8 +30,8 @@ def generate_launch_description():
         'fleet_param',       
         description='Path to the fleet parameter file'
     )
-    use_sim_time_launch_arg = DeclareLaunchArgument(
-        'use_sim_time',
+    sim_launch_arg = DeclareLaunchArgument(
+        'sim',
         default_value='False',
         description='Use simulation clock if true'
     )
@@ -57,7 +57,7 @@ def generate_launch_description():
         description='Launch pressure sensor and depth converter nodes'
     )
 
-    use_sim_time = LaunchConfiguration('use_sim_time')
+    sim = LaunchConfiguration('sim')
 
     # Declare launch nodes
     dvl_node = launch_ros.actions.Node(
@@ -65,7 +65,7 @@ def generate_launch_description():
         executable='dvl_a50_sensor',
         parameters=[LaunchConfiguration('param_file'), 
                     LaunchConfiguration('fleet_param'), 
-                    {'use_sim_time': use_sim_time}],
+                    {'use_sim_time': sim}],
         namespace=LaunchConfiguration('namespace'),
         condition=IfCondition(LaunchConfiguration('use_dvl')),
     )
@@ -74,7 +74,7 @@ def generate_launch_description():
         executable='dvl_manager.py',
         parameters=[LaunchConfiguration('param_file'), 
                     LaunchConfiguration('fleet_param'), 
-                    {'use_sim_time': use_sim_time}],
+                    {'use_sim_time': sim}],
         namespace=LaunchConfiguration('namespace'),
         condition=IfCondition(LaunchConfiguration('use_dvl')),
     )
@@ -84,7 +84,7 @@ def generate_launch_description():
         executable='modem',
         parameters=[LaunchConfiguration('param_file'), 
                     LaunchConfiguration('fleet_param'), 
-                    {'use_sim_time': use_sim_time}],
+                    {'use_sim_time': sim}],
         namespace=LaunchConfiguration('namespace'),
         output='log',
         condition=IfCondition(LaunchConfiguration('acoms_on')),
@@ -95,7 +95,7 @@ def generate_launch_description():
         executable='pressure_to_depth',
         parameters=[LaunchConfiguration('param_file'), 
                     LaunchConfiguration('fleet_param'), 
-                    {'use_sim_time': use_sim_time}],
+                    {'use_sim_time': sim}],
         namespace=LaunchConfiguration('namespace'),
         condition=IfCondition(LaunchConfiguration('use_pressure')),
     )
@@ -116,7 +116,7 @@ def generate_launch_description():
                     LaunchConfiguration('fleet_param'),
                     # vehicle_params[namespace]['gpsd_client']['ros__parameters'],
                     {'log_level': 'warn'},  # Add log level here
-                    {'use_sim_time': use_sim_time}
+                    {'use_sim_time': sim}
                 ],
                 extra_arguments=[{'use_intra_process_comms': True}]
             ),
@@ -127,7 +127,7 @@ def generate_launch_description():
                 name='utm_gpsfix_to_odometry_node',
                 parameters=[
                     {'log_level': 'warn'},  # Add log level here
-                    {'use_sim_time': use_sim_time}
+                    {'use_sim_time': sim}
                 ],
             ),
         ],
@@ -141,7 +141,7 @@ def generate_launch_description():
         namespace_launch_arg,
         param_file_launch_arg,
         fleet_param_launch_arg,
-        use_sim_time_launch_arg,
+        sim_launch_arg,
         use_dvl_launch_arg,
         use_gps_launch_arg,
         use_acoustics_launch_arg,
