@@ -63,11 +63,11 @@ public:
     WaypointController() : Node("waypoint_controller") {
 
         this->declare_parameter("loop_rate",           10.0);
-        this->declare_parameter("waypoint_timeout",   300.0);
+        this->declare_parameter("waypoint_timeout",   600.0);
         this->declare_parameter("skip_on_timeout",     true);
         this->declare_parameter("default_speed",           1.0);
-        this->declare_parameter("default_capture_radius", 2.0);
-        this->declare_parameter("default_slip_radius",   10.0);
+        this->declare_parameter("default_capture_radius", 5.0);
+        this->declare_parameter("default_slip_radius",   8.0);
         this->declare_parameter("slip_dwell_time",         5.0);
 
         rclcpp::QoS origin_qos(1);
