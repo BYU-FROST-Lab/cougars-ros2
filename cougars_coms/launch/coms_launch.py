@@ -7,7 +7,7 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, UnlessCondition
 
 def generate_launch_description():
 
@@ -69,7 +69,8 @@ def generate_launch_description():
             {'use_sim_time': sim}
         ],
         output='screen',
-        emulate_tty=True
+        emulate_tty=True,
+        condition=UnlessCondition(sim)
     )
 
     vehicle_pinger_node = Node(
