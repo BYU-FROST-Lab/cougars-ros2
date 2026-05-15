@@ -90,7 +90,7 @@ public:
 
         //subscriber for dvl data
         this->dvl_subscriber_ = this->create_subscription<dvl_msgs::msg::DVLDR>(
-            "dvl/position", 10,
+            "dvl/position", rclcpp::SensorDataQoS(),
             [this](dvl_msgs::msg::DVLDR msg) {
                 this->dvl_position_x = msg.position.x;
                 this->dvl_position_y = msg.position.y;
@@ -102,7 +102,7 @@ public:
         );
 
         this->dvl_vel_subscriber_ = this->create_subscription<dvl_msgs::msg::DVL>(
-            "dvl/data", 10,
+            "dvl/data", rclcpp::SensorDataQoS(),
             [this](dvl_msgs::msg::DVL msg) {
                 this->velocity_x = msg.velocity.x;
                 this->velocity_y = msg.velocity.y;
