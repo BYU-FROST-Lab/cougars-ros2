@@ -75,19 +75,19 @@ public:
         // Populates any missing properties in the waypoints with the mission-level properties, so that the waypoints have all necessary information for the waypoint manager
         for (geographic_msgs::msg::WayPoint& wp : msg->points) {
             std::unordered_map<std::string, std::string> props_map = getKeyValue(wp.props);
-            if (props_map.find("speed") == props_map.end()){
+            if (props_map.find("speed") != props_map.end()){
                 geographic_msgs::msg::KeyValue speed_kv;
                 speed_kv.key = "speed";
                 speed_kv.value = route_props_map["speed"];
                 wp.props.push_back(speed_kv);
             }
-            if (props_map.find("slip") == props_map.end()){
+            if (props_map.find("slip") != props_map.end()){
                 geographic_msgs::msg::KeyValue slip_kv;
                 slip_kv.key = "slip";
                 slip_kv.value = route_props_map["slip"];
                 wp.props.push_back(slip_kv);
             }
-            if (props_map.find("cap") == props_map.end()){
+            if (props_map.find("cap") != props_map.end()){
                 geographic_msgs::msg::KeyValue cap_kv;
                 cap_kv.key = "cap";
                 cap_kv.value = route_props_map["cap"];
