@@ -54,6 +54,7 @@ public:
   {
 
     this->declare_parameter("timer_period", 80);
+    this->declare_parameter("use_state_estimate", false);
 
     this->declare_parameter("depth_kp", 0.0);
     this->declare_parameter("depth_ki", 0.0);
@@ -93,18 +94,29 @@ public:
             "control/setpoint", 10,
             std::bind(&CougControls::control_command_callback, this, _1));
 
-    actual_depth_subscription_ = this->create_subscription<nav_msgs::msg::Odometry>(
+    if (this->get_parameter("use_state_estimate").as_bool()) {
+      RCLCPP_INFO(this->get_logger(), "Subscribing to state_estimate topic for control.");
+
+      state_estimate_subscription_ = this->create_subscription<nav_msgs::msg::Odometry>(
+        "state_estimate", qos,
+        std::bind(&CougControls::state_estimate_callback, this, _1));
+
+    } else {
+      RCLCPP_INFO(this->get_logger(), "Not subscribing to state_estimate topic for control, using raw sensor data instead.");
+      
+      actual_depth_subscription_ = this->create_subscription<nav_msgs::msg::Odometry>(
         "depth/odom", 10,
         std::bind(&CougControls::actual_depth_callback, this, _1));
 
-    actual_orientation_subscription_ =
+      actual_orientation_subscription_ =
         this->create_subscription<sensor_msgs::msg::Imu>(
-            "imu/data", 10,
-            std::bind(&CougControls::actual_orientation_callback, this, _1));
+          "imu/data", 10,
+          std::bind(&CougControls::actual_orientation_callback, this, _1));
 
-    actual_velocity_subscription_ = this->create_subscription<geometry_msgs::msg::TwistWithCovarianceStamped>(
+      actual_velocity_subscription_ = this->create_subscription<geometry_msgs::msg::TwistWithCovarianceStamped>(
         "dvl/twist", qos,
         std::bind(&CougControls::dvl_velocity_callback, this, _1));
+    }
 
     system_control_sub_ = this->create_subscription<cougars_interfaces::msg::SystemControl>(
         "system/control", 1, std::bind(&CougControls::system_callback, this, _1));
@@ -213,6 +225,22 @@ private:
     {
       this->desired_speed = msg.speed;
     }
+  }
+
+  void state_estimate_callback(const nav_msgs::msg::Odometry &state_msg)
+  {
+    this->velocity[0] = state_msg.twist.twist.linear.x;
+    this->velocity[1] = state_msg.twist.twist.linear.y;
+    this->velocity[2] = state_msg.twist.twist.linear.z;
+    this->actual_depth = -state_msg.pose.pose.position.z; // Negate z (ENU) to get positive-down depth
+    this->actual_heading = atan2(state_msg.pose.pose.orientation.z, state_msg.pose.pose.orientation.w) * (180.0 / M_PI); // Convert yaw from radians to degrees
+    this->actual_pitch = atan2(state_msg.pose.pose.orientation.y, state_msg.pose.pose.orientation.w) * (180.0 / M_PI); // Convert pitch from radians to degrees
+    this->actual_roll = atan2(state_msg.pose.pose.orientation.x, state_msg.pose.pose.orientation.w) * (180.0 / M_PI); // Convert roll from radians to degrees
+    this->yaw_rate = state_msg.twist.twist.angular.z;
+    this->pitch_rate = state_msg.twist.twist.angular.y;
+    
+    RCLCPP_DEBUG(this->get_logger(), "State Estimate Callback - Depth: %f, Heading: %f, Pitch: %f, Roll: %f, Yaw Rate: %f, Pitch Rate: %f",
+        this->actual_depth, this->actual_heading, this->actual_pitch, this->actual_roll, this->yaw_rate, this->pitch_rate);
   }
 
   void actual_depth_callback(const nav_msgs::msg::Odometry &depth_msg)
@@ -458,6 +486,7 @@ private:
   rclcpp::Publisher<cougars_interfaces::msg::ActuatorCommand>::SharedPtr u_command_publisher_;
   rclcpp::Publisher<cougars_interfaces::msg::ControlsDebug>::SharedPtr debug_controls_pub_;
   rclcpp::Subscription<cougars_interfaces::msg::VehicleSetpoint>::SharedPtr control_command_subscription_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr state_estimate_subscription_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr actual_depth_subscription_;
   rclcpp::Subscription<geometry_msgs::msg::TwistWithCovarianceStamped>::SharedPtr actual_velocity_subscription_;
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr actual_orientation_subscription_;
