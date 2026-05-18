@@ -19,11 +19,6 @@
 
 using std::placeholders::_1;
 
-// rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
-// auto qos = rclcpp::QoS(
-//     rclcpp::QoSInitialization(qos_profile.history, qos_profile.depth),
-//     qos_profile);
-
 class DVLConvertor : public rclcpp::Node {
 public:
 
@@ -37,10 +32,10 @@ public:
         this->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>(
             "dvl/dead_reckoning", 10);
     subscriber_dvl_data = this->create_subscription<dvl_msgs::msg::DVL>(
-        "dvl/data", 10,
+        "dvl/data", rclcpp::SensorDataQoS(),
         std::bind(&DVLConvertor::dvl_data_callback, this, _1));
     subscriber_dvl_position = this->create_subscription<dvl_msgs::msg::DVLDR>(
-        "dvl/position", 10,
+        "dvl/position", rclcpp::SensorDataQoS(),
         std::bind(&DVLConvertor::dvl_pos_callback, this, _1));
   }
 

@@ -63,11 +63,11 @@ public:
     WaypointController() : Node("waypoint_controller") {
 
         this->declare_parameter("loop_rate",           10.0);
-        this->declare_parameter("waypoint_timeout",   300.0);
+        this->declare_parameter("waypoint_timeout",   600.0);
         this->declare_parameter("skip_on_timeout",     true);
         this->declare_parameter("default_speed",           1.0);
-        this->declare_parameter("default_capture_radius", 2.0);
-        this->declare_parameter("default_slip_radius",   10.0);
+        this->declare_parameter("default_capture_radius", 5.0);
+        this->declare_parameter("default_slip_radius",   8.0);
         this->declare_parameter("slip_dwell_time",         5.0);
 
         rclcpp::QoS origin_qos(1);
@@ -94,15 +94,25 @@ public:
         feedback_pub_ = this->create_publisher<cougars_interfaces::msg::WaypointFeedback>(
             "waypoint_feedback", 10);
 
-        double loop_rate = this->get_parameter("loop_rate").as_double();
+        get_parameters();
         control_timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(static_cast<int>(1000.0 / loop_rate)),
+            std::chrono::milliseconds(static_cast<int>(1000.0 / loop_rate_)),
             std::bind(&WaypointController::control_loop, this));
 
         waypoint_start_time_ = this->now();
     }
 
 private:
+    void get_parameters() {
+        loop_rate_ = this->get_parameter("loop_rate").as_double();
+        waypoint_timeout_ = this->get_parameter("waypoint_timeout").as_double();
+        skip_on_timeout_ = this->get_parameter("skip_on_timeout").as_bool();
+        default_speed_ = this->get_parameter("default_speed").as_double();
+        default_capture_radius_ = this->get_parameter("default_capture_radius").as_double();
+        default_slip_radius_ = this->get_parameter("default_slip_radius").as_double();
+        slip_dwell_time_ = this->get_parameter("slip_dwell_time").as_double();
+    }
+
     void origin_callback(const geographic_msgs::msg::GeoPoint &msg) {
         origin_ = std::make_shared<geographic_msgs::msg::GeoPoint>(msg);
         // If a waypoint arrived before the origin was ready, convert it now
@@ -129,6 +139,8 @@ private:
         if (msg->start.data == false) {
             RCLCPP_INFO(this->get_logger(), "Turning off WaypointController.");
             waypoint_state_ = cougars_interfaces::msg::WaypointFeedback::STATE_PARKING;
+        } else {
+            get_parameters();
         }
     }
 
@@ -166,10 +178,10 @@ private:
         }
 
         auto props           = parse_props(current_waypoint_->props);
-        double speed         = get_prop_double(props, "speed", this->get_parameter("default_speed").as_double());
-        double cap_radius    = get_prop_double(props, "cap",   this->get_parameter("default_capture_radius").as_double());
-        double slip_radius   = get_prop_double(props, "slip",  this->get_parameter("default_slip_radius").as_double());
-        double slip_dwell_time = this->get_parameter("slip_dwell_time").as_double();
+        double speed         = get_prop_double(props, "speed", default_speed_);
+        double cap_radius    = get_prop_double(props, "cap",   default_capture_radius_);
+        double slip_radius   = get_prop_double(props, "slip",  default_slip_radius_);
+        double slip_dwell_time = slip_dwell_time_;
         bool depth_from_bottom = (props.count("DFB") && props.at("DFB") == "true");
             
         double dx = waypoint_enu_x_ - current_x_;
@@ -182,8 +194,8 @@ private:
         while (heading_error_rad < -M_PI) heading_error_rad += 2.0 * M_PI;
 
         double elapsed = (this->now() - waypoint_start_time_).seconds();
-        if (elapsed > this->get_parameter("waypoint_timeout").as_double()) {
-            if (this->get_parameter("skip_on_timeout").as_bool()) {
+        if (elapsed > waypoint_timeout_) {
+            if (skip_on_timeout_) {
                 RCLCPP_WARN(this->get_logger(),
                     "Waypoint timeout after %.1f s (%.1f m away). Skipping.", elapsed, distance);
                 waypoint_state_ = cougars_interfaces::msg::WaypointFeedback::STATE_SKIPPED;
@@ -324,6 +336,15 @@ private:
     rclcpp::Time   waypoint_start_time_;
     bool           in_slip_             = false;
     rclcpp::Time   slip_entry_time_;
+
+    // Parameters
+    double loop_rate_;
+    double waypoint_timeout_;
+    bool   skip_on_timeout_;
+    double default_speed_;
+    double default_capture_radius_;
+    double default_slip_radius_;
+    double slip_dwell_time_;
 };
 
 int main(int argc, char * argv[])

@@ -30,10 +30,11 @@ def generate_launch_description():
         default_value=f'{Path.home()}/config/fleet/fleet_params.yaml'
     )
     use_sim_time_launch_arg = DeclareLaunchArgument(
-        'use_sim_time',
+        'sim',
         default_value='False',
         description='Use simulation clock if true'
     )
+    sim = LaunchConfiguration('sim')
     
 
     ### Nodes
@@ -43,7 +44,7 @@ def generate_launch_description():
         name='waypoint_iterator',
         namespace=LaunchConfiguration('namespace'),
         parameters=[LaunchConfiguration('param_file'), 
-                    {'use_sim_time': LaunchConfiguration('use_sim_time')}],
+                    {'use_sim_time': sim}],
         output='screen',
     )
     waypoint_controller = Node(
@@ -52,8 +53,7 @@ def generate_launch_description():
         name='waypoint_controller',
         namespace=LaunchConfiguration('namespace'),
         parameters=[LaunchConfiguration('param_file'), 
-                    {'use_sim_time': LaunchConfiguration('use_sim_time')}],
-        remappings=[('state_estimate', '/holoocean/auv0/DynamicsSensorOdom')],
+                    {'use_sim_time': sim}],
         output='screen',
     )
     setpoint_transformer_node = Node(
@@ -62,7 +62,7 @@ def generate_launch_description():
         name='setpoint_transformer',
         namespace=LaunchConfiguration('namespace'),
         output='log',
-        parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time')}],
+        parameters=[{'use_sim_time': sim}],
     )
 
 
