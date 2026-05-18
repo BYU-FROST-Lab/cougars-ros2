@@ -99,7 +99,7 @@ public:
 
     actual_orientation_subscription_ =
         this->create_subscription<sensor_msgs::msg::Imu>(
-            "imu/data", 10,
+            "seatrac/imu/data", 10,
             std::bind(&CougControls::actual_orientation_callback, this, _1));
 
     actual_velocity_subscription_ = this->create_subscription<geometry_msgs::msg::TwistWithCovarianceStamped>(
