@@ -68,6 +68,7 @@ def generate_launch_description():
                     {'use_sim_time': sim}],
         namespace=LaunchConfiguration('namespace'),
         condition=IfCondition(LaunchConfiguration('use_dvl')),
+        output='log'
     )
     dvl_manager = launch_ros.actions.Node(
         package='cougars_bridge',
@@ -77,6 +78,7 @@ def generate_launch_description():
                     {'use_sim_time': sim}],
         namespace=LaunchConfiguration('namespace'),
         condition=IfCondition(LaunchConfiguration('use_dvl')),
+        output='log'
     )
 
     seatrac_node = launch_ros.actions.Node(
