@@ -59,16 +59,13 @@ class EmergencyProtocols : public rclcpp::Node
 
         this->status_publisher_ = this->create_publisher<cougars_interfaces::msg::SystemStatus>("safety_status", 10);
 
-        // timer to monitor the connections of the various systems, e.g. modem, gps, dvl, etc.
-        monitor_timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(3000),
-            std::bind(&EmergencyProtocols::monitor_sensors, this)
+        // wait 30 seconds after startup before monitoring, to give time for all the nodes to start and publish their first messages
+        // only goes off once, and then starts the regular monitoring timers
+        this->startup_timer_ = this->create_wall_timer(
+            std::chrono::milliseconds(30000),
+            std::bind(&EmergencyProtocols::startup_callback, this)
         );
 
-        status_timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(1000),
-            std::bind(&EmergencyProtocols::publish_status, this)
-        );
 
         this->modem_conection_logged = false;
         this->dvl_conection_logged = false;
@@ -90,6 +87,23 @@ class EmergencyProtocols : public rclcpp::Node
         this->gps_connection_timeout_ = this->get_parameter("gps_connection_timeout").as_int();
         this->gps_origin_dist_max_ = this->get_parameter("gps_origin_dist_max").as_double();
         this->verbosity_ = this->get_parameter("verbosity").as_int();
+    }
+
+    void startup_callback() {
+        RCLCPP_INFO(this->get_logger(), "Starting emergency protocols monitoring.");
+
+        // timer to monitor the connections of the various systems, e.g. modem, gps, dvl, etc.
+        this->monitor_timer_ = this->create_wall_timer(
+            std::chrono::milliseconds(3000),
+            std::bind(&EmergencyProtocols::monitor_sensors, this)
+        );
+
+        this->status_timer_ = this->create_wall_timer(
+            std::chrono::milliseconds(1000),
+            std::bind(&EmergencyProtocols::publish_status, this)
+        );
+
+        this->startup_timer_->cancel(); // cancel the startup timer, we only want it to go off once
     }
 
     void monitor_sensors(){
@@ -237,9 +251,10 @@ class EmergencyProtocols : public rclcpp::Node
     double gps_origin_lon;
     double gps_origin_alt;
 
-
+    rclcpp::TimerBase::SharedPtr startup_timer_;
     rclcpp::TimerBase::SharedPtr monitor_timer_;
     rclcpp::TimerBase::SharedPtr status_timer_;
+
 
     // parameters
     int modem_connection_timeout_;
