@@ -97,6 +97,14 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('fins_manual'))
     )
 
+    emergency_protocols_node = Node(
+        package='cougars_control',
+        executable='emergency_protocols',
+        parameters=[param_file, fleet_param, {'use_sim_time': sim}],
+        namespace=namespace,
+        output='log',
+    )
+
 
 
     launch_actions = [
@@ -114,7 +122,8 @@ def generate_launch_description():
         mc_serial_node,
         kinematics_node,
         controls_node,
-        fins_manual_node
+        fins_manual_node,
+        emergency_protocols_node
     ]
 
     return launch.LaunchDescription(launch_actions)
