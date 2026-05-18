@@ -78,7 +78,7 @@ def generate_launch_description():
                     {'use_sim_time': sim}],
         namespace=LaunchConfiguration('namespace'),
         condition=IfCondition(LaunchConfiguration('use_dvl')),
-        output='log'
+        output='none'
     )
 
     seatrac_node = launch_ros.actions.Node(
@@ -88,7 +88,7 @@ def generate_launch_description():
                     LaunchConfiguration('fleet_param'), 
                     {'use_sim_time': sim}],
         namespace=LaunchConfiguration('namespace'),
-        output='log',
+        output='none',
         condition=IfCondition(LaunchConfiguration('acoms_on')),
     )
 
