@@ -54,7 +54,6 @@ def generate_launch_description():
         namespace=LaunchConfiguration('namespace'),
         parameters=[LaunchConfiguration('param_file'), 
                     {'use_sim_time': sim}],
-        remappings=[('state_estimate', '/holoocean/auv0/DynamicsSensorOdom')],
         output='screen',
     )
     setpoint_transformer_node = Node(
