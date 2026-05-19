@@ -34,7 +34,7 @@ class OriginPublisher(Node):
             depth=1,
         )
 
-        self.pub = self.create_publisher(GeoPoint, 'origin', qos)
+        self.pub = self.create_publisher(GeoPoint, '/origin', qos)
 
         if self.get_parameter('use_param_origin').get_parameter_value().bool_value:
             self.publish_param_origin()

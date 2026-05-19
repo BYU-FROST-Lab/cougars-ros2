@@ -23,7 +23,7 @@ class NavSatFixToOdom(Node):
         - extended_fix (gps_msgs/msg/GPSFix)
         - origin (geographic_msgs/msg/GeoPoint)
     Publishes:
-        - gps_odom (nav_msgs/msg/Odometry)
+        - gps/odom (nav_msgs/msg/Odometry)
     '''
     def __init__(self):
         '''
@@ -39,7 +39,7 @@ class NavSatFixToOdom(Node):
             history=HistoryPolicy.KEEP_LAST,
             depth=1,
         )
-        self.origin_sub = self.create_subscription(GeoPoint, 'origin', self.origin_callback, origin_qos)
+        self.origin_sub = self.create_subscription(GeoPoint, '/origin', self.origin_callback, origin_qos)
 
         # Subscribe to NavSatFix and GPSFix separately and cache the latest NavSatFix
         self.last_fix_msg = None
@@ -54,7 +54,7 @@ class NavSatFixToOdom(Node):
         self.min_sats = 5  # Minimum number of satellites
 
         # Publisher for Odometry
-        self.publisher = self.create_publisher(Odometry, 'gps_odom', 10)
+        self.publisher = self.create_publisher(Odometry, 'gps/odom', 10)
 
     def origin_callback(self, msg: GeoPoint):
         self.origin = msg

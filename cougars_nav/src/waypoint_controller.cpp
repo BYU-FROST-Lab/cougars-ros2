@@ -74,7 +74,7 @@ public:
         origin_qos.reliable();
         origin_qos.transient_local();
         origin_sub_ = this->create_subscription<geographic_msgs::msg::GeoPoint>(
-            "origin", origin_qos,
+            "/origin", origin_qos,
             std::bind(&WaypointController::origin_callback, this, _1));
 
         waypoint_sub_ = this->create_subscription<geographic_msgs::msg::WayPoint>(
