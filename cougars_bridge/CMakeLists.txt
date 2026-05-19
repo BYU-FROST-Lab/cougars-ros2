@@ -78,6 +78,7 @@ install(PROGRAMS
   scripts/dvl_manager.py
   scripts/nmea_constructor.py
   scripts/mavlink_bridge.py
+  scripts/imu_source_selector.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

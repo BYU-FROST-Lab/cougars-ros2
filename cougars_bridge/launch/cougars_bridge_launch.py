@@ -6,6 +6,7 @@ from launch.actions import DeclareLaunchArgument
 
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python.packages import get_package_share_directory
+from launch.conditions import IfCondition, UnlessCondition
 
 import os
 from pathlib import Path
@@ -75,6 +76,24 @@ def generate_launch_description():
         namespace=LaunchConfiguration('namespace')
     )
 
+    imu_source_sim = launch_ros.actions.Node(
+        package='cougars_bridge',
+        name='sim_imu_source_selector',
+        executable='imu_source_selector.py',
+        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
+        namespace=LaunchConfiguration('namespace'),
+        condition=IfCondition(LaunchConfiguration('sim'))
+    )
+
+    imu_source_vehicle = launch_ros.actions.Node(
+        package='cougars_bridge',
+        name='vehicle_imu_source_selector',
+        executable='imu_source_selector.py',
+        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
+        namespace=LaunchConfiguration('namespace'),
+        condition=UnlessCondition(LaunchConfiguration('sim'))
+    )
+
     static_tf_publisher = launch_ros.actions.Node(
         package='cougars_bridge',
         executable='static_tf_publisher',
@@ -98,7 +117,9 @@ def generate_launch_description():
         dvl_global,
         seatrac_ahrs_convertor,
         gps_odom,
-        static_tf_publisher
+        static_tf_publisher,
+        imu_source_sim,
+        imu_source_vehicle
     ]
 
     return launch.LaunchDescription(launch_actions)

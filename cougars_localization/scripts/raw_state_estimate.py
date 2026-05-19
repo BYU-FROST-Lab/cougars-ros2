@@ -11,15 +11,15 @@ class RawStateEstimate(Node):
     :author: Clayton Smith
     :date: May 2026
 
-    Combines GPS x/y position from gps_odom with orientation from seatrac/imu/data
+    Combines GPS x/y position from gps_odom with orientation from imu/data
     into a single Odometry message published as state_estimate.
 
-    The IMU publishes at ~10 Hz; GPS publishes faster. The latest IMU orientation
+    The latest IMU orientation
     is cached and stamped onto each GPS-triggered output message.
 
     Subscribes:
-        - gps_odom (nav_msgs/msg/Odometry)
-        - seatrac/imu/data (sensor_msgs/msg/Imu)
+        - gps/odom (nav_msgs/msg/Odometry)
+        - imu/data (sensor_msgs/msg/Imu)
     Publishes:
         - state_estimate (nav_msgs/msg/Odometry)
     '''
@@ -29,8 +29,8 @@ class RawStateEstimate(Node):
 
         self.latest_imu: Imu | None = None
 
-        self.create_subscription(Imu, 'seatrac/imu/data', self.imu_callback, 10)
-        self.create_subscription(Odometry, 'gps_odom', self.gps_odom_callback, 10)
+        self.create_subscription(Imu, 'imu/data', self.imu_callback, 10)
+        self.create_subscription(Odometry, 'gps/odom', self.gps_odom_callback, 10)
 
         self.publisher = self.create_publisher(Odometry, 'state_estimate', 10)
 
