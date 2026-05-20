@@ -68,7 +68,8 @@ def generate_launch_description():
                     {'use_sim_time': sim}],
         namespace=LaunchConfiguration('namespace'),
         condition=IfCondition(LaunchConfiguration('use_dvl')),
-        output='log'
+        output='log',
+        arguments=['--ros-args', '--log-level', 'FATAL']
     )
     dvl_manager = launch_ros.actions.Node(
         package='cougars_bridge',
@@ -78,7 +79,8 @@ def generate_launch_description():
                     {'use_sim_time': sim}],
         namespace=LaunchConfiguration('namespace'),
         condition=IfCondition(LaunchConfiguration('use_dvl')),
-        output='none'
+        output='log',
+        arguments=['--ros-args', '--log-level', 'FATAL']
     )
 
     seatrac_node = launch_ros.actions.Node(
@@ -88,7 +90,7 @@ def generate_launch_description():
                     LaunchConfiguration('fleet_param'), 
                     {'use_sim_time': sim}],
         namespace=LaunchConfiguration('namespace'),
-        output='none',
+        output='log',
         condition=IfCondition(LaunchConfiguration('acoms_on')),
     )
 
