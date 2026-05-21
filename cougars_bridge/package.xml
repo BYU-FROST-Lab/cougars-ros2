@@ -24,6 +24,8 @@
   <exec_depend>gps_msgs</exec_depend>
   <exec_depend>geographic_msgs</exec_depend>
   <exec_depend>ros2launch</exec_depend>
+  <exec_depend>topic_tools</exec_depend>
+
   <depend>tf2_geometry_msgs</depend>
 
 

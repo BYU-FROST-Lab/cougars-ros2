@@ -21,7 +21,7 @@ class RawStateEstimate(Node):
         - gps/odom (nav_msgs/msg/Odometry)
         - imu/data (sensor_msgs/msg/Imu)
     Publishes:
-        - state_estimate (nav_msgs/msg/Odometry)
+        - odometry/global (nav_msgs/msg/Odometry)
     '''
 
     def __init__(self):
@@ -32,7 +32,7 @@ class RawStateEstimate(Node):
         self.create_subscription(Imu, 'imu/data', self.imu_callback, 10)
         self.create_subscription(Odometry, 'gps/odom', self.gps_odom_callback, 10)
 
-        self.publisher = self.create_publisher(Odometry, 'state_estimate', 10)
+        self.publisher = self.create_publisher(Odometry, 'odometry/global', 10)
 
     def imu_callback(self, msg: Imu):
         self.latest_imu = msg

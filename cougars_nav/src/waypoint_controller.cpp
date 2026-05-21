@@ -34,7 +34,7 @@ to STATE_ARRIVED when within slip_radius, or STATE_SKIPPED on timeout.
 Subscribes:
   - "waypoint"       (geographic_msgs/WayPoint)       — from waypoint_iterator
   - "origin"         (geographic_msgs/GeoPoint)        — transient-local
-  - "state_estimate" (geometry_msgs/PoseWithCovarianceStamped) — current pose
+  - "odometry/global" (nav_msgs/Odometry) — current pose
   - "system/control" (cougars_interfaces/SystemControl) — to know when to stop
 
 Publishes:
@@ -85,7 +85,7 @@ public:
             "system/control", 10, std::bind(&WaypointController::system_control_callback, this, std::placeholders::_1));
 
         state_estimate_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
-            "state_estimate", 10,
+            "odometry/global", 10,
             std::bind(&WaypointController::state_estimate_callback, this, _1));
 
         command_pub_ = this->create_publisher<cougars_interfaces::msg::VehicleSetpoint>(

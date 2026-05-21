@@ -54,6 +54,10 @@ def generate_launch_description():
         get_package_share_directory('cougars_localization'), 'launch')
     nav_dir = os.path.join(
         get_package_share_directory('cougars_nav'), 'launch')
+    description_dir = os.path.join(
+        get_package_share_directory('coug_description'), 'launch')
+    description_urdf_dir = os.path.join(
+        get_package_share_directory('coug_description'), 'urdf')
 
     try:    
         holoocean_bridge_dir = os.path.join(
@@ -99,6 +103,26 @@ def generate_launch_description():
         launch_arguments=launch_args,
         condition=UnlessCondition(LaunchConfiguration('sim')))
 
+    sim_coug_description_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(description_dir, "coug_description.launch.py")),
+        launch_arguments=[
+            ('namespace', LaunchConfiguration('namespace')),
+            ('sim', LaunchConfiguration('sim')),
+            ('urdf_file', os.path.join(description_urdf_dir, 'couguv_holoocean.urdf.xacro')),
+        ],
+        condition=IfCondition(LaunchConfiguration('sim')))
+
+    coug_description_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(description_dir, "coug_description.launch.py")),
+        launch_arguments=[
+            ('namespace', LaunchConfiguration('namespace')),
+            ('sim', LaunchConfiguration('sim')),
+            ('urdf_file', os.path.join(description_urdf_dir, 'couguv.urdf.xacro')),
+        ],
+        condition=UnlessCondition(LaunchConfiguration('sim')))
+
     if holoocean_bridge_dir is not None:
         holo_bridge_launch = IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
@@ -122,6 +146,8 @@ def generate_launch_description():
         waypoint_launch,
         localization_launch,
         sensors_launch,
+        coug_description_launch,
+        sim_coug_description_launch,
         bringup_launch,
     ]
 

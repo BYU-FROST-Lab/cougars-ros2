@@ -90,15 +90,16 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('acoms_on')),
     )
 
-    pressure_to_depth_node = launch_ros.actions.Node(
-        package='pressure_sensor',
-        executable='pressure_to_depth',
-        parameters=[LaunchConfiguration('param_file'), 
-                    LaunchConfiguration('fleet_param'), 
-                    {'use_sim_time': sim}],
-        namespace=LaunchConfiguration('namespace'),
-        condition=IfCondition(LaunchConfiguration('use_pressure')),
-    )
+    # This is in cougars bridge. This will need to be launched with the new pressure sensor. 
+    # pressure_node = launch_ros.actions.Node(
+    #     package='pressure_sensor',
+    #     executable='pressure_to_depth',
+    #     parameters=[LaunchConfiguration('param_file'), 
+    #                 LaunchConfiguration('fleet_param'), 
+    #                 {'use_sim_time': sim}],
+    #     namespace=LaunchConfiguration('namespace'),
+    #     condition=IfCondition(LaunchConfiguration('use_pressure')),
+    # )
 
     gps_node_container = launch_ros.actions.ComposableNodeContainer(
         package='rclcpp_components',
@@ -152,7 +153,7 @@ def generate_launch_description():
         dvl_manager,
         seatrac_node,
         gps_node_container,
-        pressure_to_depth_node
+        # pressure_to_depth_node
     ]
 
     return launch.LaunchDescription(launch_actions)

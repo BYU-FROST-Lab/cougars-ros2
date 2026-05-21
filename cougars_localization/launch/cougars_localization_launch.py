@@ -4,7 +4,6 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
-import launch_ros.actions
 from pathlib import Path
 
 def generate_launch_description():
@@ -30,21 +29,30 @@ def generate_launch_description():
     )
 
     sim = LaunchConfiguration('sim')
+    namespace = LaunchConfiguration('namespace')
+    param_file = LaunchConfiguration('param_file')
+    fleet_param = LaunchConfiguration('fleet_param')
 
-    raw_state_estimate = launch_ros.actions.Node(
-        package='cougars_localization',
-        executable='raw_state_estimate.py',
-        parameters=[LaunchConfiguration('param_file'), 
-                    LaunchConfiguration('fleet_param'), 
-                    {'use_sim_time': sim}],
-        namespace=LaunchConfiguration('namespace')
-    )
-
+    # TODO should i put it in here or should i put it in the cougars_bringup?
     return LaunchDescription([
         namespace_launch_arg,
         param_file_launch_arg,
         fleet_param_launch_arg,
         use_sim_time_launch_arg,
 
-        raw_state_estimate
+        # Node(
+        #     package='cougars_localization',
+        #     executable='raw_state_estimate.py',
+        #     parameters=[param_file, fleet_param, {'use_sim_time': sim}],
+        #     namespace=namespace,
+
+        # ),
+        Node(
+            package='robot_localization',
+            executable='ekf_node',
+            name='ekf_filter_node_map',
+            parameters=[param_file, fleet_param, {'use_sim_time': sim}],
+            namespace=namespace,
+            remappings=[('odometry/filtered', 'odometry/global')]    
+        ),
     ])

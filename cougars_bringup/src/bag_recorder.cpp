@@ -103,7 +103,7 @@ public:
             subscribe_to_topic<nav_msgs::msg::Odometry>("gps/odom");
             subscribe_to_topic<nav_msgs::msg::Odometry>("smoothed_output");
             subscribe_to_topic<sensor_msgs::msg::Imu>("modem_imu");
-            subscribe_to_topic<geometry_msgs::msg::PoseWithCovarianceStamped>("depth_data");
+            subscribe_to_topic<nav_msgs::msg::Odometry>("depth/odom");
 
         }
         

@@ -1,5 +1,6 @@
 import launch
 import launch_ros.actions
+from launch_ros.actions import Node
 import launch_ros.descriptions
 from launch.substitutions import LaunchConfiguration
 from launch.actions import DeclareLaunchArgument
@@ -7,6 +8,7 @@ from launch.actions import DeclareLaunchArgument
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python.packages import get_package_share_directory
 from launch.conditions import IfCondition, UnlessCondition
+from launch.substitutions import PythonExpression
 
 import os
 from pathlib import Path
@@ -15,7 +17,6 @@ from pathlib import Path
 # 
 # Launches all the converter nodes that bridge
 # the cougars hardward nodes with the algorithmic nodes
-# Author: Clayton Smith
 # 
 #########################################
 
@@ -41,64 +42,105 @@ def generate_launch_description():
         description='Use simulation clock if true'
     )
 
-    use_sim_time = LaunchConfiguration('sim')
+    sim = LaunchConfiguration('sim')
+    namespace = LaunchConfiguration('namespace')
+    param_file = LaunchConfiguration('param_file')
+    fleet_param = LaunchConfiguration('fleet_param')
 
+    dvl_odom_frame_id = PythonExpression(
+        [
+            "'",
+            namespace,
+            "/dvl_odom' if '",
+            namespace,
+            "' != '' else 'dvl_odom'",
+        ]
+    )
+
+    dvl_odom_ned_frame_id = PythonExpression(
+        [
+            "'",
+            namespace,
+            "/dvl_odom_ned' if '",
+            namespace,
+            "' != '' else 'dvl_odom_ned'",
+        ]
+    )
+
+    
+    # TODO fix this as well. Launching from another package
     # declare nodes
-    depth_converter = launch_ros.actions.Node(
-        package='cougars_bridge',
-        executable='depth_converter',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
-        namespace=LaunchConfiguration('namespace'),
+    depth_converter = Node(
+        package='pressure_sensor',
+        executable='pressure_to_depth',
+        parameters=[param_file, fleet_param, {'use_sim_time': sim}],
+        namespace=namespace,
     )
-    dvl_converter = launch_ros.actions.Node(
-        package='cougars_bridge',
-        executable='dvl_converter',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
-        namespace=LaunchConfiguration('namespace'),
+    # dvl_converter = Node(
+    #     package='cougars_bridge',
+    #     executable='dvl_converter',
+    #     parameters=[param_file, fleet_param, {'use_sim_time': sim}],
+    #     namespace=namespace,
+    # )
+    # TODO launching a node from another package but not sure where to put it.
+    dvl_converter = Node(
+        package='dvl_a50',
+        executable='dvl_a50_nav',
+        parameters=[param_file, fleet_param, {'use_sim_time': sim}],
+        namespace=namespace,
     )
-    dvl_global = launch_ros.actions.Node(
-        package='cougars_bridge',
-        executable='dvl_global',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
-        namespace=LaunchConfiguration('namespace'),
-    )
-    seatrac_ahrs_convertor = launch_ros.actions.Node(
+    transform_publisher = launch_ros.actions.Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name='body_zup_to_zdown',
+            namespace=namespace,
+            arguments=[
+                '--x', '0', 
+                '--y', '0', 
+                '--z', '0', 
+                '--qx', '1', 
+                '--qy', '0', 
+                '--qz', '0', 
+                '--qw', '0',
+                '--frame-id', dvl_odom_frame_id,
+                '--child-frame-id', dvl_odom_ned_frame_id],
+            output='screen',
+        )
+
+    # dvl_global = Node(
+    #     package='cougars_bridge',
+    #     executable='dvl_global',
+    #     parameters=[param_file, fleet_param, {'use_sim_time': sim}],
+    #     namespace=namespace,
+    # )
+    seatrac_ahrs_convertor = Node(
         package='cougars_bridge',
         executable='seatrac_imu_converter',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
-        namespace=LaunchConfiguration('namespace'),
+        parameters=[param_file, fleet_param, {'use_sim_time': sim}],
+        namespace=namespace,
     )
 
-    gps_odom = launch_ros.actions.Node(
+    gps_odom = Node(
         package='cougars_bridge',
         executable='gps_odom.py',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
-        namespace=LaunchConfiguration('namespace')
+        parameters=[param_file, fleet_param, {'use_sim_time': sim}],
+        namespace=namespace
     )
 
-    imu_source_sim = launch_ros.actions.Node(
-        package='cougars_bridge',
-        name='sim_imu_source_selector',
-        executable='imu_source_selector.py',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
-        namespace=LaunchConfiguration('namespace'),
-        condition=IfCondition(LaunchConfiguration('sim'))
-    )
-
-    imu_source_vehicle = launch_ros.actions.Node(
-        package='cougars_bridge',
-        name='vehicle_imu_source_selector',
-        executable='imu_source_selector.py',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
-        namespace=LaunchConfiguration('namespace'),
+    imu_source_vehicle = Node(
+        package='topic_tools',
+        name='vehicle_imu_source',
+        executable='relay',
+        parameters=[param_file, fleet_param, {'use_sim_time': sim}],
+        namespace=namespace,
         condition=UnlessCondition(LaunchConfiguration('sim'))
     )
 
-    static_tf_publisher = launch_ros.actions.Node(
+    static_tf_publisher = Node(
         package='cougars_bridge',
         executable='static_tf_publisher',
-        parameters=[LaunchConfiguration('param_file'), LaunchConfiguration('fleet_param'), {'use_sim_time': use_sim_time}],
-        namespace=LaunchConfiguration('namespace'),
+        parameters=[param_file, fleet_param, {'use_sim_time': sim}],
+        namespace=namespace,
     )
 
 
@@ -114,11 +156,11 @@ def generate_launch_description():
         # launch nodes
         depth_converter,
         dvl_converter,
-        dvl_global,
+        # dvl_global,
+        transform_publisher,
         seatrac_ahrs_convertor,
         gps_odom,
         static_tf_publisher,
-        imu_source_sim,
         imu_source_vehicle
     ]
 

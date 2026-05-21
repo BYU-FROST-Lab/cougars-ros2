@@ -110,7 +110,7 @@ public:
 
       actual_orientation_subscription_ =
         this->create_subscription<sensor_msgs::msg::Imu>(
-            "seatrac/imu/data", 10,
+            "imu/data", 10,
             std::bind(&CougControls::actual_orientation_callback, this, _1));
 
       actual_velocity_subscription_ = this->create_subscription<geometry_msgs::msg::TwistWithCovarianceStamped>(
@@ -209,8 +209,9 @@ private:
       if (std::abs(msg.depth - this->desired_depth) >= EPSILON)
       {
         // RCLCPP_INFO(this->get_logger(), "New Depth Desired: %f, Old desired depth %f", msg.depth, this->desired_depth);
-        // TODO come back to this
         this->desired_depth = msg.depth;
+        // TODO come back to this. Resetting the lowpass filter on a new depth command. Should filter it before it gets here maybe.
+        // Maybe it could detect big jumps to reset the filter and smooth from there. So just bump up the epsilon to like 1 meter
         // this->depth_ref = this->actual_depth;
       }
     }
@@ -443,6 +444,7 @@ private:
       // Debugging Message
       auto message = cougars_interfaces::msg::ControlsDebug();
       message.header.stamp = this->now();
+
       message.pitch.actual = this->actual_pitch;
       message.pitch.rate = this->pitch_rate;
       message.pitch.desired = this->theta_ref;
@@ -452,7 +454,7 @@ private:
       message.pitch.d = myPitchPID.getD();
       message.pitch.pid = myPitchPID.getPID();
 
-      message.depth.actual = depth_trackpoint;
+      message.depth.actual = depth_trackpoint; // why is this called depth_trackpoint.
       message.depth.rate = this->velocity[2];
       message.depth.desired = this->desired_depth;
       message.depth.reference = this->depth_ref;

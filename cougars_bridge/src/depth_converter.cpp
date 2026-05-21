@@ -10,7 +10,7 @@
 #define GRAVITY 9.81           // m/s^2
 #define FLUID_DENSITY_BASE 997 // kg/m^3
 
-#include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/fluid_pressure.hpp"
 #include "std_srvs/srv/trigger.hpp"
@@ -34,7 +34,7 @@ auto qos = rclcpp::QoS(
  * Subscribes:
  * - pressure/data (sensor_msgs/msg/FluidPressure)
  * Publishes:
- * - depth_data (geometry_msgs/msg/PoseWithCovarianceStamped)
+ * - depth/odom (nav_msgs/msg/Odometry)
  */
 class DepthConvertor : public rclcpp::Node {
 public:
@@ -62,12 +62,12 @@ public:
     /**
      * @brief Depth publisher.
      * 
-     * This publisher publishes the depth data to the "depth_data" topic. It
-     * uses the PoseWithCovarianceStamped message type.
+     * This publisher publishes the depth data to the "depth/odom" topic. It
+     * uses the Odometry message type.
      */
     depth_publisher_ =
-        this->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>(
-            "depth_data", 10);
+        this->create_publisher<nav_msgs::msg::Odometry>(
+            "depth/odom", 10);
 
     /**
      * @brief Pressure subscriber.
@@ -118,7 +118,7 @@ private:
   void pressure_callback(
       const sensor_msgs::msg::FluidPressure::SharedPtr pressure_msg) {
 
-    geometry_msgs::msg::PoseWithCovarianceStamped depth_msg;
+    nav_msgs::msg::Odometry depth_msg;
     depth_msg.header.stamp =
         pressure_msg->header.stamp; // copy exact time from the sensor message
     
@@ -213,7 +213,7 @@ private:
 
 
   // ROS objects
-  rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr
+  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr
       depth_publisher_;
   rclcpp::Subscription<sensor_msgs::msg::FluidPressure>::SharedPtr
       pressure_subscription_;
