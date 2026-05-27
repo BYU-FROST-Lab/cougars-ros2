@@ -18,7 +18,7 @@
 #include "gps_msgs/msg/gps_fix.hpp"
 #include "dvl_msgs/msg/dvldr.hpp"
 #include "seatrac_interfaces/msg/modem_status.hpp"
-#include "rcl_interfaces/srv/get_parameters.hpp"
+#include "geographic_msgs/msg/geo_point.hpp"
 
 
 using namespace std::chrono_literals;
@@ -108,6 +108,13 @@ public:
 
     status_publisher_ = this->create_publisher<cougars_interfaces::msg::SystemStatus>("safety_status", 10);
 
+    rclcpp::QoS origin_qos(1);
+    origin_qos.reliable();
+    origin_qos.transient_local();
+    origin_subscription_ = this->create_subscription<geographic_msgs::msg::GeoPoint>(
+        "origin", origin_qos,
+        std::bind(&EmergencyProtocols::origin_callback, this, _1));
+
     this->okay = true;
     this->init = false;
     this->imuPub=false;
@@ -116,9 +123,6 @@ public:
     this->gps_origin_lon=0;
     this->gps_origin_alt=0;
     this->gps_bad_origin=0;
-    if(this->get_parameter("gps_origin_check").as_bool()){
-      grab_gps_params();
-    }
   
     depth_val = 1.0;
     back_near_surface = false;
@@ -366,35 +370,10 @@ bool update_publishers(){
     status_publisher_->publish(message);
 
   }
-  void handle_gps_param_response(rclcpp::Client<rcl_interfaces::srv::GetParameters>::SharedFuture future){
-    auto response = future.get();
-    if (response->values.empty()) {
-      RCLCPP_ERROR(this->get_logger(), "No parameter values returned!");
-      return;
-    }
-   this->gps_origin_lat = response->values[0].double_value; //test which value is which
-   this->gps_origin_lon = response->values[1].double_value;
-   this->gps_origin_alt = response->values[2].double_value;
-  }
-  void grab_gps_params(){
-        // Create the client for the target node's parameter service
-    rclcpp::Client<rcl_interfaces::srv::GetParameters>::SharedPtr client_ = this->create_client<rcl_interfaces::srv::GetParameters>("/gps_odom/get_parameters");
-
-    // Wait for the service to be available
-    while (!client_->wait_for_service(std::chrono::seconds(1))) {
-      RCLCPP_INFO(this->get_logger(), "waiting for parameters from gps odom");
-    }
-
-    // Create the request
-    auto request = std::make_shared<rcl_interfaces::srv::GetParameters::Request>();
-    request->names.push_back("origin.latitude");
-    request->names.push_back("origin.longitude");
-    request->names.push_back("origin.altitude");
-
-    // Send the request asynchronously
-    auto future = client_->async_send_request(request,
-      std::bind(&EmergencyProtocols::handle_gps_param_response, this, std::placeholders::_1));
-  
+  void origin_callback(const geographic_msgs::msg::GeoPoint &msg) {
+    this->gps_origin_lat = msg.latitude;
+    this->gps_origin_lon = msg.longitude;
+    this->gps_origin_alt = msg.altitude;
   }
   void gps_fix_callback(const gps_msgs::msg::GPSFix &msg){
     if(this->get_parameter("gps_origin_check").as_bool()){
@@ -604,6 +583,7 @@ void leak_callback(const sensor_msgs::msg::FluidPressure &msg){
 //   rclcpp::Subscription<cougars_interfaces::msg::VehicleStatus>::SharedPtr vehicle_status_moos_subscription_;
   rclcpp::Subscription<cougars_interfaces::msg::UCommand>::SharedPtr command_subscription_;
   rclcpp::Subscription<gps_msgs::msg::GPSFix>::SharedPtr gps_subscription_;
+  rclcpp::Subscription<geographic_msgs::msg::GeoPoint>::SharedPtr origin_subscription_;
   rclcpp::Subscription<dvl_msgs::msg::DVLDR>::SharedPtr dvl_subscription_;
   rclcpp::Subscription<seatrac_interfaces::msg::ModemStatus>::SharedPtr modem_subscription_;
 

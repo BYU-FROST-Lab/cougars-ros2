@@ -1,0 +1,36 @@
+mission_type: manual
+
+# Heading uses ENU radians: 0.0=East, 1.5708=North, 3.1416=West, 4.7124=South
+# depth_from_bottom: true  →  ALTITUDE mode: depth = desired meters above seafloor
+#                             the setpoint_transformer converts this to absolute depth using DVL
+# depth_from_bottom: false →  DEPTH mode: depth = meters below surface (default)
+
+states:
+
+  # --- Descend and establish heading ---
+  - depth: 1.0
+    heading: 0.0        # East
+    speed: 20.0         # thruster %
+    time_seconds: 10.0
+    depth_from_bottom: false
+
+  # --- Transit at depth ---
+  - depth: 2.0
+    heading: 0.0        # East
+    speed: 20.0
+    time_seconds: 15.0
+    depth_from_bottom: false
+
+  # --- Follow bottom contour (1.5 m altitude above seafloor) ---
+  - depth: 1.5          # desired altitude above seafloor in meters
+    heading: 0.0
+    speed: 20.0
+    time_seconds: 10.0
+    depth_from_bottom: true
+
+  # --- Return to shallow depth and stop ---
+  - depth: 0.5
+    heading: 0.0
+    speed: 0.0
+    time_seconds: 10.0
+    depth_from_bottom: false

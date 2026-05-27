@@ -32,6 +32,8 @@ install(TARGETS
 # Install Python executables
 install(PROGRAMS
   scripts/startup_call.py
+  scripts/mission_publisher.py
+  scripts/origin_publisher.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

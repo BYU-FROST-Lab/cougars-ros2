@@ -70,10 +70,10 @@ public:
         );
 
         // subscriber for depth data
-        this->depth_subscriber_ = this->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
-            "depth_data", 10,
+        this->depth_subscriber_ = this->create_subscription<nav_msgs::msg::Odometry>(
+            "depth/odom", 10,
 
-            [this](geometry_msgs::msg::PoseWithCovarianceStamped msg) {
+            [this](nav_msgs::msg::Odometry msg) {
                 this->depth = msg.pose.pose.position.z;
             }
         );
@@ -90,7 +90,7 @@ public:
 
         //subscriber for dvl data
         this->dvl_subscriber_ = this->create_subscription<dvl_msgs::msg::DVLDR>(
-            "dvl/position", 10,
+            "dvl/position", rclcpp::SensorDataQoS(),
             [this](dvl_msgs::msg::DVLDR msg) {
                 this->dvl_position_x = msg.position.x;
                 this->dvl_position_y = msg.position.y;
@@ -102,7 +102,7 @@ public:
         );
 
         this->dvl_vel_subscriber_ = this->create_subscription<dvl_msgs::msg::DVL>(
-            "dvl/data", 10,
+            "dvl/data", rclcpp::SensorDataQoS(),
             [this](dvl_msgs::msg::DVL msg) {
                 this->velocity_x = msg.velocity.x;
                 this->velocity_y = msg.velocity.y;
@@ -394,7 +394,7 @@ private:
     rclcpp::Subscription<cougars_interfaces::msg::SystemStatus>::SharedPtr safety_subscriber_;
     rclcpp::Subscription<sensor_msgs::msg::BatteryState>::SharedPtr battery_subscriber_;
     rclcpp::Subscription<sensor_msgs::msg::FluidPressure>::SharedPtr pressure_subscriber_;
-    rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr depth_subscriber_;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr depth_subscriber_;
     rclcpp::Subscription<dvl_msgs::msg::DVLDR>::SharedPtr dvl_subscriber_;
     rclcpp::Subscription<dvl_msgs::msg::DVL>::SharedPtr dvl_vel_subscriber_;
     rclcpp::Subscription<cougars_interfaces::msg::WayPoint>::SharedPtr waypoint_subscriber_;

@@ -20,8 +20,6 @@ std_msgs/Bool dvl_acoustics
 
 # Epoch start for Modem
 
-# Origin
-
 # Mission Type
 
 
