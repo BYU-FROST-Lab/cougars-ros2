@@ -59,7 +59,7 @@ class RFBridge(Node):
         self.base_station_id = self.declare_parameter('base_station_id', 15).value
 
         # XBee configuration
-        self.xbee_port = self.declare_parameter('xbee_port', '/dev/frost/xbee_radio').value
+        self.xbee_port = self.declare_parameter('xbee_port', '/dev/ttyAMA0').value
         self.xbee_baud = self.declare_parameter('xbee_baud', 9600).value
         self.device = XBeeDevice(self.xbee_port, self.xbee_baud)
         try:
