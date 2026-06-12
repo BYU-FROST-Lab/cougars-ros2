@@ -142,20 +142,6 @@ class RFBridge(Node):
         self.FLEET_PARAMS_FILE = "fleet_params.yaml"
         self.MISSION_FILE = "mission.yaml"
 
-    def safe_numeric_convert(self, value, convert_func=float):
-        """Safely convert ROS2 message fields to Python numeric types"""
-        try:
-            if hasattr(value, 'data'):
-                value = value.data
-            # Handle numpy/ROS2 integer types (int8, int16, etc.)
-            if hasattr(value, 'item'):
-                return convert_func(value.item())
-            # Handle regular Python types
-            else:
-                return convert_func(value)
-        except (ValueError, TypeError, AttributeError):
-            return convert_func(0)  # Default fallback value
-
     def heading_from_quaternion(self, orientation):
         yaw = math.atan2(
             2.0 * (orientation.w * orientation.z + orientation.x * orientation.y),
@@ -165,46 +151,46 @@ class RFBridge(Node):
 
     def battery_callback(self, msg):
         self.latest_battery = {
-            "v": round(self.safe_numeric_convert(msg.voltage, float), 2),
+            "v": msg.voltage,
         }
         self.get_logger().debug("Updated battery data")
 
     def safety_status_callback(self, msg):
         self.latest_safety_status = {
-            "depth_status": self.safe_numeric_convert(msg.depth_status, int),
-            "g_s": self.safe_numeric_convert(msg.gps_status, int),
-            "m_s": self.safe_numeric_convert(msg.modem_status, int),
-            "dvl_status": self.safe_numeric_convert(msg.dvl_status, int),
-            "imu": self.safe_numeric_convert(msg.imu_published, bool),
-            "e_s": self.safe_numeric_convert(msg.emergency_status, int),
+            "depth_status": msg.depth_status.data,
+            "g_s": msg.gps_status.data,
+            "m_s": msg.modem_status.data,
+            "dvl_status": msg.dvl_status.data,
+            "imu": msg.imu_published.data,
+            "e_s": msg.emergency_status.data,
         }
         self.get_logger().debug("Updated safety status data")
 
     def state_estimate_callback(self, msg):
         pose = msg.pose.pose
         self.latest_state_estimate = {
-            "x": round(self.safe_numeric_convert(pose.position.x, float), 2),
-            "y": round(self.safe_numeric_convert(pose.position.y, float), 2),
-            "depth": round(-self.safe_numeric_convert(pose.position.z, float), 2),
-            "heading": round(self.heading_from_quaternion(pose.orientation), 2),
+            "x": pose.position.x,
+            "y": pose.position.y,
+            "depth": -pose.position.z,
+            "heading": self.heading_from_quaternion(pose.orientation),
         }
         self.get_logger().debug("Updated state estimate data")
 
     def dvl_callback(self, msg):
         self.latest_dvl_velocity = {
-            "vx": round(self.safe_numeric_convert(msg.velocity.x, float), 2),
-            "vy": round(self.safe_numeric_convert(msg.velocity.y, float), 2),
-            "vz": round(self.safe_numeric_convert(msg.velocity.z, float), 2),
+            "vx": msg.velocity.x,
+            "vy": msg.velocity.y,
+            "vz": msg.velocity.z,
             "valid": bool(msg.velocity_valid),
         }
         self.get_logger().debug("Updated DVL velocity data")
 
     def mission_feedback_callback(self, msg):
         self.latest_mission_feedback = {
-            "state": self.safe_numeric_convert(msg.state, int),
-            "elapsed_time": round(self.safe_numeric_convert(msg.elapsed_time, float), 1),
-            "waypoints_completed": self.safe_numeric_convert(msg.waypoints_completed, int),
-            "waypoints_total": self.safe_numeric_convert(msg.waypoints_total, int),
+            "state": msg.state,
+            "elapsed_time": msg.elapsed_time,
+            "waypoints_completed": msg.waypoints_completed,
+            "waypoints_total": msg.waypoints_total,
         }
         if msg.mission_id:
             self.latest_mission_feedback["mission_id"] = msg.mission_id
@@ -212,16 +198,16 @@ class RFBridge(Node):
 
     def waypoint_feedback_callback(self, msg):
         self.latest_waypoint_feedback = {
-            "state": self.safe_numeric_convert(msg.state, int),
-            "distance": round(self.safe_numeric_convert(msg.horizontal_distance_error, float), 2),
-            "depth_error": round(self.safe_numeric_convert(msg.depth_error, float), 2),
-            "bearing_error": round(self.safe_numeric_convert(msg.bearing_error, float), 2),
+            "state": msg.state,
+            "distance": msg.horizontal_distance_error,
+            "depth_error": msg.depth_error,
+            "bearing_error": msg.bearing_error,
         }
         self.get_logger().debug("Updated waypoint feedback data")
     
     def pressure_callback(self, msg):
         self.latest_pressure = {
-            "pres": round(self.safe_numeric_convert(msg.fluid_pressure, float), 1),
+            "pres": msg.fluid_pressure,
         }
         self.get_logger().debug("Updated pressure data")
 
