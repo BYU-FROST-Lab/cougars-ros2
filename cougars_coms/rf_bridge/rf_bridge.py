@@ -71,7 +71,7 @@ class RFBridge(Node):
 
         # ROS publishers and subscribers
         self.publisher = self.create_publisher(String, 'rf_received', 10)
-        self.init_publisher = self.create_publisher(SystemControl, 'system/status', 10)
+        self.init_publisher = self.create_publisher(SystemControl, 'system/control', 10)
         origin_qos = QoSProfile(
             depth=1,
             reliability=QoSReliabilityPolicy.RELIABLE,
