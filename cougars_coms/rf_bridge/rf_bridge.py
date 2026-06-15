@@ -10,6 +10,7 @@ from dvl_msgs.msg import DVL
 from std_srvs.srv import SetBool
 from std_msgs.msg import Bool
 from cougars_interfaces.msg import MissionFeedback, SystemControl, UCommand, WaypointFeedback
+from geographic_msgs.msg import GeoPoint
 
 from digi.xbee.devices import XBeeDevice, RemoteXBeeDevice
 from digi.xbee.exception import TransmitException
@@ -71,6 +72,12 @@ class RFBridge(Node):
         # ROS publishers and subscribers
         self.publisher = self.create_publisher(String, 'rf_received', 10)
         self.init_publisher = self.create_publisher(SystemControl, 'system/status', 10)
+        origin_qos = QoSProfile(
+            depth=1,
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+        )
+        self.origin_publisher = self.create_publisher(GeoPoint, '/origin', origin_qos)
 
         self.e_kill_client = self.create_client(SetBool, "arm_thruster")
 
@@ -301,6 +308,8 @@ class RFBridge(Node):
             elif message_type == "INIT":
                 self.get_logger().info(f"Received INIT command {data}")
                 self.init_vehicle(data, return_address)
+            elif message_type == "ORIGIN":
+                self.publish_origin(data)
             elif message_type == "KEY_CONTROL":
                 self.get_logger().debug(f"Received KEY_CONTROL command {data}")
                 self.handle_key_control(data)
@@ -313,6 +322,17 @@ class RFBridge(Node):
         except Exception as e:
             self.get_logger().error(f"Error in data_receive_callback: {e}")
             # self.get_logger().error(traceback.format_exc())
+
+    def publish_origin(self, data):
+        origin_msg = GeoPoint()
+        origin_msg.latitude = float(data["lat"])
+        origin_msg.longitude = float(data["lon"])
+        origin_msg.altitude = float(data["alt"])
+        self.origin_publisher.publish(origin_msg)
+        self.get_logger().info(
+            f"Published origin received over radio: lat={origin_msg.latitude}, "
+            f"lon={origin_msg.longitude}, alt={origin_msg.altitude}"
+        )
 
     def handle_key_control(self, msg):
         # self.get_logger().info(f"recieved key control through radio {msg}")
