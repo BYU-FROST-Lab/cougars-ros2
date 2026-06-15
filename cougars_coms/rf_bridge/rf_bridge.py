@@ -9,7 +9,7 @@ from sensor_msgs.msg import BatteryState, FluidPressure
 from dvl_msgs.msg import DVL
 from std_srvs.srv import SetBool
 from std_msgs.msg import Bool
-from cougars_interfaces.msg import MissionFeedback, SystemControl, SystemStatus, UCommand, WaypointFeedback
+from cougars_interfaces.msg import MissionFeedback, SystemControl, UCommand, WaypointFeedback
 
 from digi.xbee.devices import XBeeDevice, RemoteXBeeDevice
 from digi.xbee.exception import TransmitException
@@ -45,7 +45,6 @@ class RFBridge(Node):
             depth=5)
 
         # Data storage
-        self.latest_safety_status = "NO_DATA"
         self.latest_state_estimate = "NO_DATA"
         self.latest_dvl_velocity = "NO_DATA"
         self.latest_battery = "NO_DATA"
@@ -81,15 +80,9 @@ class RFBridge(Node):
             self.tx_callback,
             10)
 
-        self.subscription = self.create_subscription(
-            SystemStatus,
-            'safety_status',
-            self.safety_status_callback,
-            10)
-
         self.battery_sub = self.create_subscription(
             BatteryState,
-            'battery/data',
+            'battery_data',
             self.battery_callback,
             10)
         
@@ -101,13 +94,13 @@ class RFBridge(Node):
 
         self.dvl_sub = self.create_subscription(
             DVL,
-            'dvl/data',
+            'dvl',
             self.dvl_callback,
             self.dvl_qos)
         
         self.pressure_sub = self.create_subscription(
             FluidPressure,
-            'pressure/data',
+            'pressure_data',
             self.pressure_callback,
             10)
         
@@ -142,46 +135,35 @@ class RFBridge(Node):
         self.FLEET_PARAMS_FILE = "fleet_params.yaml"
         self.MISSION_FILE = "mission.yaml"
 
-    def heading_from_quaternion(self, orientation):
-        yaw = math.atan2(
-            2.0 * (orientation.w * orientation.z + orientation.x * orientation.y),
-            1.0 - 2.0 * (orientation.y * orientation.y + orientation.z * orientation.z),
-        )
-        return math.degrees(yaw)
-
     def battery_callback(self, msg):
         self.latest_battery = {
-            "v": msg.voltage,
+            "voltage": msg.voltage,
+            "current": msg.current,
+            "percentage": msg.percentage,
         }
         self.get_logger().debug("Updated battery data")
-
-    def safety_status_callback(self, msg):
-        self.latest_safety_status = {
-            "depth_status": msg.depth_status.data,
-            "g_s": msg.gps_status.data,
-            "m_s": msg.modem_status.data,
-            "dvl_status": msg.dvl_status.data,
-            "imu": msg.imu_published.data,
-            "e_s": msg.emergency_status.data,
-        }
-        self.get_logger().debug("Updated safety status data")
 
     def state_estimate_callback(self, msg):
         pose = msg.pose.pose
         self.latest_state_estimate = {
             "x": pose.position.x,
             "y": pose.position.y,
-            "depth": -pose.position.z,
-            "heading": self.heading_from_quaternion(pose.orientation),
+            "z": pose.position.z,
+            "qx": pose.orientation.x,
+            "qy": pose.orientation.y,
+            "qz": pose.orientation.z,
+            "qw": pose.orientation.w,
         }
         self.get_logger().debug("Updated state estimate data")
 
     def dvl_callback(self, msg):
         self.latest_dvl_velocity = {
-            "vx": msg.velocity.x,
-            "vy": msg.velocity.y,
-            "vz": msg.velocity.z,
-            "valid": bool(msg.velocity_valid),
+            "x": msg.velocity.x,
+            "y": msg.velocity.y,
+            "z": msg.velocity.z,
+            "velocity_valid": bool(msg.velocity_valid),
+            "altitude": msg.altitude,
+            "fom": msg.fom,
         }
         self.get_logger().debug("Updated DVL velocity data")
 
@@ -191,15 +173,14 @@ class RFBridge(Node):
             "elapsed_time": msg.elapsed_time,
             "waypoints_completed": msg.waypoints_completed,
             "waypoints_total": msg.waypoints_total,
+            "mission_id": msg.mission_id,
         }
-        if msg.mission_id:
-            self.latest_mission_feedback["mission_id"] = msg.mission_id
         self.get_logger().debug("Updated mission feedback data")
 
     def waypoint_feedback_callback(self, msg):
         self.latest_waypoint_feedback = {
             "state": msg.state,
-            "distance": msg.horizontal_distance_error,
+            "horizontal_distance_error": msg.horizontal_distance_error,
             "depth_error": msg.depth_error,
             "bearing_error": msg.bearing_error,
         }
@@ -207,7 +188,8 @@ class RFBridge(Node):
     
     def pressure_callback(self, msg):
         self.latest_pressure = {
-            "pres": msg.fluid_pressure,
+            "fluid_pressure": msg.fluid_pressure,
+            "variance": msg.variance,
         }
         self.get_logger().debug("Updated pressure data")
 
@@ -239,15 +221,48 @@ class RFBridge(Node):
         data_dict = {
             "src_id" : self.vehicle_id,
             "message" : "STATUS",
-            "s": self.latest_safety_status,
-            "state": self.latest_state_estimate,
-            "dvl": self.latest_dvl_velocity,
-            "b": self.latest_battery,
-            "m": self.latest_mission_feedback,
-            "w": self.latest_waypoint_feedback,
-            "p": self.latest_pressure,
         }
-        data_dict = {k: v for k, v in data_dict.items() if v and v != "NO_DATA"}
+
+        if self.latest_state_estimate != "NO_DATA":
+            data_dict.update(self.latest_state_estimate)
+        if self.latest_pressure != "NO_DATA":
+            data_dict["pressure"] = self.latest_pressure["fluid_pressure"]
+            data_dict["pressure_variance"] = self.latest_pressure["variance"]
+        if self.latest_battery != "NO_DATA":
+            data_dict.update({
+                "voltage": self.latest_battery["voltage"],
+                "current": self.latest_battery["current"],
+                "percentage": self.latest_battery["percentage"],
+            })
+        if self.latest_dvl_velocity != "NO_DATA":
+            data_dict.update({
+                "dvl_x": self.latest_dvl_velocity["x"],
+                "dvl_y": self.latest_dvl_velocity["y"],
+                "dvl_z": self.latest_dvl_velocity["z"],
+                "dvl_valid": self.latest_dvl_velocity["velocity_valid"],
+                "dvl_altitude": self.latest_dvl_velocity["altitude"],
+                "dvl_fom": self.latest_dvl_velocity["fom"],
+            })
+        if self.latest_waypoint_feedback != "NO_DATA":
+            data_dict.update({
+                "ws": self.latest_waypoint_feedback["state"],
+                "hd": self.latest_waypoint_feedback["horizontal_distance_error"],
+                "de": self.latest_waypoint_feedback["depth_error"],
+                "be": self.latest_waypoint_feedback["bearing_error"],
+            })
+        if self.latest_mission_feedback != "NO_DATA":
+            data_dict.update({
+                "mission_id": self.latest_mission_feedback["mission_id"],
+                "ms": self.latest_mission_feedback["state"],
+                "wc": self.latest_mission_feedback["waypoints_completed"],
+                "tw": self.latest_mission_feedback["waypoints_total"],
+                "et": self.latest_mission_feedback["elapsed_time"],
+            })
+
+        data_dict = {
+            key: value for key, value in data_dict.items()
+            if not isinstance(value, float) or math.isfinite(value)
+        }
         return json.dumps(data_dict, separators=(',', ':'))
 
     def data_receive_callback(self, xbee_message):
