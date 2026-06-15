@@ -89,7 +89,7 @@ class RFBridge(Node):
 
         self.battery_sub = self.create_subscription(
             BatteryState,
-            'battery_data',
+            'battery/data',
             self.battery_callback,
             10)
         
@@ -107,7 +107,7 @@ class RFBridge(Node):
         
         self.pressure_sub = self.create_subscription(
             FluidPressure,
-            'pressure_data',
+            'pressure/data',
             self.pressure_callback,
             10)
         
