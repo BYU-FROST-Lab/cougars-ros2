@@ -300,8 +300,7 @@ class RFBridge(Node):
                 self.kill_thruster(return_address)
             elif message_type == "INIT":
                 self.get_logger().info(f"Received INIT command {data}")
-                self.init_vehicle(data)
-                self.device.send_data_broadcast("INIT_ACK")
+                self.init_vehicle(data, return_address)
             elif message_type == "KEY_CONTROL":
                 self.get_logger().debug(f"Received KEY_CONTROL command {data}")
                 self.handle_key_control(data)
@@ -341,7 +340,7 @@ class RFBridge(Node):
         self.ucommand_pub.publish(ucommand_msg)
 
     
-    def init_vehicle(self, msg):
+    def init_vehicle(self, msg, return_address):
         self.get_logger().info("Initializing vehicle with received parameters")
         init_msg = SystemControl()
         init_msg.header.stamp = self.get_clock().now().to_msg()
@@ -358,9 +357,13 @@ class RFBridge(Node):
         response = {
             "src_id": self.vehicle_id,
             "message": "INIT_ACK",
-            "status": "received"
+            "success": True,
+            "status": "received",
         }
-        self.device.send_data_broadcast(json.dumps(response))
+        self.send_message(
+            json.dumps(response, separators=(',', ':')),
+            return_address,
+        )
 
     
     def kill_thruster(self, return_address):
