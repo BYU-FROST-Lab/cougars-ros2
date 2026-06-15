@@ -26,6 +26,9 @@ import time
 import shutil
 
 class RFBridge(Node):
+    MAX_XBEE_PAYLOAD_BYTES = 90
+    FRAGMENT_DATA_BYTES = 18
+
     def __init__(self):
         super().__init__('rf_bridge')
 
@@ -141,7 +144,7 @@ class RFBridge(Node):
         # File transfer state tracking
         self.active_transfers = {}  # transfer_id -> transfer_info
         self.file_chunks = {}       # transfer_id -> {chunk_num -> data}
-        self.mission_transfers = {}
+        self.fragment_transfers = {}
         self.received_files_dir = "/tmp/received_missions"  # Directory to save received files
         os.makedirs(self.received_files_dir, exist_ok=True)
 
@@ -217,19 +220,62 @@ class RFBridge(Node):
             # self.get_logger().error(traceback.format_exc())
             pass 
 
-    def send_message(self, msg, address):
+    def _send_raw_message(self, msg, address):
         try:
             remote_device = RemoteXBeeDevice(self.device, address)
             self.device.send_data(remote_device, msg)
             self.get_logger().debug(f"Sent via XBee: {msg}")
+            return True
         except TransmitException as e:
-            pass
-            # self.get_logger().error(f"XBee transmission error - TransmitException: {e}")
-            # self.get_logger().error(traceback.format_exc())
+            self.get_logger().debug(f"XBee transmission error: {e}")
+            return False
         except Exception as e:
-            pass
-            # self.get_logger().error(f"XBee transmission error - Exception: {str(e)}")
-            # self.get_logger().error(traceback.format_exc())
+            self.get_logger().debug(f"XBee transmission error: {e}")
+            return False
+
+    def send_message(self, msg, address):
+        payload = msg.encode('utf-8') if isinstance(msg, str) else bytes(msg)
+        if len(payload) <= self.MAX_XBEE_PAYLOAD_BYTES:
+            return self._send_raw_message(payload, address)
+
+        transfer_id = f"{time.time_ns() & 0xffffffffffff:x}"
+        chunks = [
+            payload[offset:offset + self.FRAGMENT_DATA_BYTES]
+            for offset in range(0, len(payload), self.FRAGMENT_DATA_BYTES)
+        ]
+        for index, chunk in enumerate(chunks):
+            fragment = json.dumps({
+                "message": "FRAGMENT",
+                "id": transfer_id,
+                "i": index,
+                "n": len(chunks),
+                "data": base64.b64encode(chunk).decode('ascii'),
+            }, separators=(',', ':'))
+            if not self._send_raw_message(fragment, address):
+                return False
+            time.sleep(0.03)
+
+        self.get_logger().debug(
+            f"Sent fragmented message {transfer_id} in {len(chunks)} chunks"
+        )
+        return True
+
+    def reassemble_fragment(self, data, sender_address):
+        transfer_key = (str(sender_address), data["id"])
+        transfer = self.fragment_transfers.setdefault(transfer_key, {
+            "total": int(data["n"]),
+            "chunks": {},
+        })
+        transfer["chunks"][int(data["i"])] = base64.b64decode(data["data"])
+        if len(transfer["chunks"]) != transfer["total"]:
+            return None
+
+        payload = b''.join(
+            transfer["chunks"][index] for index in range(transfer["total"])
+        ).decode('utf-8')
+        del self.fragment_transfers[transfer_key]
+        self.get_logger().debug(f"Reassembled fragmented message {data['id']}")
+        return payload
 
     def get_all_status_data(self):
         data_dict = {
@@ -298,6 +344,13 @@ class RFBridge(Node):
                 message_type = data.get("message")
             else:
                 message_type = data
+
+            if message_type == "FRAGMENT":
+                payload = self.reassemble_fragment(data, return_address)
+                if payload is None:
+                    return
+                data = json.loads(payload)
+                message_type = data.get("message")
             
             self.get_logger().debug(f"Published message: {payload}")
             if message_type == "STATUS":
@@ -317,12 +370,8 @@ class RFBridge(Node):
                 self.init_vehicle(data, return_address)
             elif message_type == "ORIGIN":
                 self.publish_origin(data)
-            elif message_type == "MISSION_START":
-                self.handle_mission_start(data, return_address)
-            elif message_type == "MISSION_CHUNK":
-                self.handle_mission_chunk(data, return_address)
-            elif message_type == "MISSION_END":
-                self.handle_mission_end(data, return_address)
+            elif message_type == "MISSION":
+                self.publish_mission(data)
             elif message_type == "KEY_CONTROL":
                 self.get_logger().debug(f"Received KEY_CONTROL command {data}")
                 self.handle_key_control(data)
@@ -347,60 +396,9 @@ class RFBridge(Node):
             f"lon={origin_msg.longitude}, alt={origin_msg.altitude}"
         )
 
-    def handle_mission_start(self, data, sender_address):
-        transfer_id = data["id"]
-        self.mission_transfers[transfer_id] = {
-            "total_chunks": int(data["chunks"]),
-            "size": int(data["size"]),
-            "chunks": {},
-            "sender_address": sender_address,
-        }
-        self.get_logger().info(
-            f"Receiving RouteNetwork over radio: {data['size']} bytes in "
-            f"{data['chunks']} chunks"
-        )
-
-    def handle_mission_chunk(self, data, sender_address):
-        transfer_id = data["id"]
-        transfer = self.mission_transfers.get(transfer_id)
-        if transfer is None or transfer["sender_address"] != sender_address:
-            self.get_logger().warn(
-                f"Ignoring mission chunk for unknown transfer {transfer_id}"
-            )
-            return
-
-        transfer["chunks"][int(data["i"])] = base64.b64decode(data["data"])
-
-    def handle_mission_end(self, data, sender_address):
-        transfer_id = data["id"]
-        transfer = self.mission_transfers.get(transfer_id)
-        if transfer is None or transfer["sender_address"] != sender_address:
-            self.get_logger().warn(
-                f"Ignoring mission end for unknown transfer {transfer_id}"
-            )
-            return
-
-        if len(transfer["chunks"]) != transfer["total_chunks"]:
-            self.get_logger().error(
-                f"Mission transfer {transfer_id} incomplete: received "
-                f"{len(transfer['chunks'])}/{transfer['total_chunks']} chunks"
-            )
-            del self.mission_transfers[transfer_id]
-            return
-
-        mission_data = b''.join(
-            transfer["chunks"][index]
-            for index in range(transfer["total_chunks"])
-        )
-        if len(mission_data) != transfer["size"]:
-            self.get_logger().error(
-                f"Mission transfer {transfer_id} size mismatch: received "
-                f"{len(mission_data)} bytes, expected {transfer['size']}"
-            )
-            del self.mission_transfers[transfer_id]
-            return
-
+    def publish_mission(self, data):
         try:
+            mission_data = base64.b64decode(data["data"])
             mission_msg = deserialize_message(mission_data, RouteNetwork)
             self.mission_publisher.publish(mission_msg)
             self.get_logger().info(
@@ -409,10 +407,8 @@ class RFBridge(Node):
             )
         except Exception as error:
             self.get_logger().error(
-                f"Failed to deserialize RouteNetwork transfer {transfer_id}: {error}"
+                f"Failed to deserialize RouteNetwork: {error}"
             )
-        finally:
-            del self.mission_transfers[transfer_id]
 
     def handle_key_control(self, msg):
         # self.get_logger().info(f"recieved key control through radio {msg}")
