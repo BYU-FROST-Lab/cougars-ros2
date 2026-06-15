@@ -54,7 +54,7 @@ class MastTest(Node):
         packets_sent = 0
         num_bytes = 128
         while packets_sent < 300:
-            msg = f"{test_name},{packets_sent},{self.get_clock().now()},{num_bytes},{distance},{self.vehicle_id}"
+            msg = f"{test_name},{packets_sent},{self.get_clock().now().nanoseconds},{num_bytes},{distance},{self.vehicle_id}"
 
             # make 128 bytes
             msg = msg.ljust(num_bytes, ' ')
