@@ -3,6 +3,7 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSDurabilityPolicy, QoSHistoryPolicy
+from rclpy.serialization import deserialize_message
 from std_msgs.msg import String
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import BatteryState, FluidPressure
@@ -10,7 +11,7 @@ from dvl_msgs.msg import DVL
 from std_srvs.srv import SetBool
 from std_msgs.msg import Bool
 from cougars_interfaces.msg import MissionFeedback, SystemControl, UCommand, WaypointFeedback
-from geographic_msgs.msg import GeoPoint
+from geographic_msgs.msg import GeoPoint, RouteNetwork
 
 from digi.xbee.devices import XBeeDevice, RemoteXBeeDevice
 from digi.xbee.exception import TransmitException
@@ -78,6 +79,11 @@ class RFBridge(Node):
             durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
         )
         self.origin_publisher = self.create_publisher(GeoPoint, '/origin', origin_qos)
+        self.mission_publisher = self.create_publisher(
+            RouteNetwork,
+            'mission',
+            origin_qos,
+        )
 
         self.e_kill_client = self.create_client(SetBool, "arm_thruster")
 
@@ -135,6 +141,7 @@ class RFBridge(Node):
         # File transfer state tracking
         self.active_transfers = {}  # transfer_id -> transfer_info
         self.file_chunks = {}       # transfer_id -> {chunk_num -> data}
+        self.mission_transfers = {}
         self.received_files_dir = "/tmp/received_missions"  # Directory to save received files
         os.makedirs(self.received_files_dir, exist_ok=True)
 
@@ -310,6 +317,12 @@ class RFBridge(Node):
                 self.init_vehicle(data, return_address)
             elif message_type == "ORIGIN":
                 self.publish_origin(data)
+            elif message_type == "MISSION_START":
+                self.handle_mission_start(data, return_address)
+            elif message_type == "MISSION_CHUNK":
+                self.handle_mission_chunk(data, return_address)
+            elif message_type == "MISSION_END":
+                self.handle_mission_end(data, return_address)
             elif message_type == "KEY_CONTROL":
                 self.get_logger().debug(f"Received KEY_CONTROL command {data}")
                 self.handle_key_control(data)
@@ -333,6 +346,73 @@ class RFBridge(Node):
             f"Published origin received over radio: lat={origin_msg.latitude}, "
             f"lon={origin_msg.longitude}, alt={origin_msg.altitude}"
         )
+
+    def handle_mission_start(self, data, sender_address):
+        transfer_id = data["id"]
+        self.mission_transfers[transfer_id] = {
+            "total_chunks": int(data["chunks"]),
+            "size": int(data["size"]),
+            "chunks": {},
+            "sender_address": sender_address,
+        }
+        self.get_logger().info(
+            f"Receiving RouteNetwork over radio: {data['size']} bytes in "
+            f"{data['chunks']} chunks"
+        )
+
+    def handle_mission_chunk(self, data, sender_address):
+        transfer_id = data["id"]
+        transfer = self.mission_transfers.get(transfer_id)
+        if transfer is None or transfer["sender_address"] != sender_address:
+            self.get_logger().warn(
+                f"Ignoring mission chunk for unknown transfer {transfer_id}"
+            )
+            return
+
+        transfer["chunks"][int(data["i"])] = base64.b64decode(data["data"])
+
+    def handle_mission_end(self, data, sender_address):
+        transfer_id = data["id"]
+        transfer = self.mission_transfers.get(transfer_id)
+        if transfer is None or transfer["sender_address"] != sender_address:
+            self.get_logger().warn(
+                f"Ignoring mission end for unknown transfer {transfer_id}"
+            )
+            return
+
+        if len(transfer["chunks"]) != transfer["total_chunks"]:
+            self.get_logger().error(
+                f"Mission transfer {transfer_id} incomplete: received "
+                f"{len(transfer['chunks'])}/{transfer['total_chunks']} chunks"
+            )
+            del self.mission_transfers[transfer_id]
+            return
+
+        mission_data = b''.join(
+            transfer["chunks"][index]
+            for index in range(transfer["total_chunks"])
+        )
+        if len(mission_data) != transfer["size"]:
+            self.get_logger().error(
+                f"Mission transfer {transfer_id} size mismatch: received "
+                f"{len(mission_data)} bytes, expected {transfer['size']}"
+            )
+            del self.mission_transfers[transfer_id]
+            return
+
+        try:
+            mission_msg = deserialize_message(mission_data, RouteNetwork)
+            self.mission_publisher.publish(mission_msg)
+            self.get_logger().info(
+                f"Published RouteNetwork received over radio with "
+                f"{len(mission_msg.points)} waypoints"
+            )
+        except Exception as error:
+            self.get_logger().error(
+                f"Failed to deserialize RouteNetwork transfer {transfer_id}: {error}"
+            )
+        finally:
+            del self.mission_transfers[transfer_id]
 
     def handle_key_control(self, msg):
         # self.get_logger().info(f"recieved key control through radio {msg}")
