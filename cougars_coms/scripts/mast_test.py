@@ -43,6 +43,8 @@ class MastTest(Node):
             distance = fields[3]
             if test_type == 0:
                 self.run_normal_test(test_name, distance)
+            elif test_type == 1:
+                self.run_heavy_test(test_name, distance)
         elif message_type == "DISCOVERY":
             self.remote_device = data.remote_device
             self.get_logger().info(
@@ -62,6 +64,19 @@ class MastTest(Node):
             self.device.send_data(self.remote_device, msg)
             packets_sent += 1
             time.sleep(0.2)
+
+    def run_heavy_test(self, test_name, distance ):
+        packets_sent = 0
+        num_bytes = 128
+        while packets_sent < 600:
+            msg = f"{test_name},{packets_sent},{self.get_clock().now().nanoseconds},{num_bytes},{distance},{self.vehicle_id}"
+
+            # make 128 bytes
+            msg = msg.ljust(num_bytes, ' ')
+
+            self.device.send_data(self.remote_device, msg)
+            packets_sent += 1
+            time.sleep(0.1)
 
 
 def main(args=None):
