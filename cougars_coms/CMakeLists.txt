@@ -49,7 +49,7 @@ install(TARGETS
 install(
   PROGRAMS
     rf_bridge/rf_bridge.py
-    mast_test.py
+    scripts/mast_test.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
