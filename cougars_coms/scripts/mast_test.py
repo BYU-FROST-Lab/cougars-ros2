@@ -44,9 +44,11 @@ class MastTest(Node):
             if test_type == 0:
                 self.run_normal_test(test_name, distance)
         elif message_type == "DISCOVERY":
-            self.remote_device = data.remote_device.get_64bit_addr()
-            self.get_logger().info(f"Found remote device {self.remote_device}")
-            self.device.send_data_broadcast(f"DISCOVERY_ACK,{self.remote_device}")
+            self.remote_device = data.remote_device
+            self.get_logger().info(
+                f"Found remote device {self.remote_device.get_64bit_addr()}"
+            )
+            self.device.send_data_broadcast("DISCOVERY_ACK")
 
     def run_normal_test(self, test_name, distance ):
         packets_sent = 0
