@@ -25,6 +25,9 @@ enum COUG_MSG_ID : uint8_t {
     REQUEST_LOCALIZATION_INFO = 0x60,
     LOCALIZATION_INFO = 0x61,
 
+    REQUEST_TIMESTAMP = 0x70,
+    TIMESTAMP = 0x71
+
 };
 
 struct RequestStatus {
@@ -34,12 +37,10 @@ struct RequestStatus {
 struct VehicleStatus {
     COUG_MSG_ID msg_id = VEHICLE_STATUS;
 
-    uint8_t waypoint_num;
-    uint16_t waypoint_x;
-    uint16_t waypoint_y;
-    uint8_t waypoint_depth;
+    uint8_t waypoint;
 
-    uint8_t battery_voltage;
+    float battery_voltage;
+    int8_t battery_percentage;
 
     uint8_t depth;
 
@@ -47,9 +48,9 @@ struct VehicleStatus {
 
     float x;
     float y;
-    uint8_t x_vel;
-    uint8_t y_vel;
-    uint8_t z_vel;
+    int16_t x_vel;
+    int16_t y_vel;
+    int16_t z_vel;
     uint8_t pressure;
     int16_t roll;
     int16_t pitch;
@@ -103,6 +104,15 @@ struct LocalizationInfo {
    float yaw;
    float depth;
 }__attribute__((packed));
+
+struct RequestTimestamp {
+    COUG_MSG_ID msg_id = REQUEST_TIMESTAMP;
+}__attribute__((packed));
+
+struct TimeStamp {
+    uint32_t seconds;
+    uint32_t nanoseconds;
+};
 
 
 

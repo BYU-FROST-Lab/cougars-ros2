@@ -46,9 +46,12 @@ public:
         this->base_station_beacon_id_ = this->declare_parameter<int>("base_station_beacon_id", 15);
 
         //buffer between immediate response to localization requests and secondary packet response
-        this->localization_queue_buffer = this->declare_parameter<int>("localization_queue_buffer_ms", 1000);
+        this->queue_buffer = this->declare_parameter<int>("queue_buffer_ms", 1000);
 
         this->collision_guard_wait_ = this->declare_parameter<double>("collision_guard_wait_sec", 3.0);
+
+        this->modem_queue_code = this->declare_parameter<int>("modem_queue_code", 0); // 0 = no queue, 1 = queue localization responses, 
+                                                                                      // 2 = queue timestamp
 
 
         // subscriber for safety status messages
@@ -141,9 +144,9 @@ public:
         this->localization_data_short_publisher_ = this->create_publisher<cougars_interfaces::msg::LocalizationDataShort>("localization_data_short", 10);
 
         // timer for queuing localization responses
-        this->localization_queue_timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(this->localization_queue_buffer),
-            std::bind(&ComsNode::queue_localization_response, this)
+        this->queue_timer_ = this->create_wall_timer(
+            std::chrono::milliseconds(this->queue_buffer),
+            std::bind(&ComsNode::queue_response, this)
         );
 
         // initialize the last modem message time to 10 seconds ago
@@ -357,21 +360,43 @@ public:
         }
     }
 
-    void queue_localization_response() {
-        if ((this->now() - this->last_modem_msg_time_).seconds() >= this->collision_guard_wait_) {
-            LocalizationInfo message;
-            message.x = this->dvl_position_x;
-            message.y = this->dvl_position_y;
-            message.z = this->dvl_position_z;
-            message.roll = this->roll;
-            message.pitch = this->pitch;
-            message.yaw = this->yaw;
-            message.depth = this->depth;
+    void queue_response() {
+        switch (this->modem_queue_code) {
+            case 0:
+                // No queueing, do nothing
+                break;
+            case 1:
+                if ((this->now() - this->last_modem_msg_time_).seconds() >= this->collision_guard_wait_) {
+                    LocalizationInfo message;
+                    message.x = this->dvl_position_x;
+                    message.y = this->dvl_position_y;
+                    message.z = this->dvl_position_z;
+                    message.roll = this->roll;
+                    message.pitch = this->pitch;
+                    message.yaw = this->yaw;
+                    message.depth = this->depth;
 
-            send_acoustic_message(0, sizeof(message), (uint8_t*)&message, CID_DAT_QUEUE_SET);
+                    send_acoustic_message(0, sizeof(message), (uint8_t*)&message, CID_DAT_QUEUE_SET);
 
-            RCLCPP_DEBUG(this->get_logger(), "[%ld] Queued localization data", this->now().nanoseconds());
+                    RCLCPP_DEBUG(this->get_logger(), "[%ld] Queued localization data", this->now().nanoseconds());
         }
+                break;
+            case 2:
+                if ((this->now() - this->last_modem_msg_time_).seconds() >= this->collision_guard_wait_) {
+                    TimeStamp message;
+                    message.seconds = this->now().seconds();
+                    message.nanoseconds = this->now().nanoseconds();
+
+                    send_acoustic_message(0, sizeof(message), (uint8_t*)&message, CID_DAT_QUEUE_SET);
+
+                    RCLCPP_DEBUG(this->get_logger(), "[%ld] Queued timestamp data", this->now().nanoseconds());
+                }
+                break;
+            default:
+                RCLCPP_WARN(this->get_logger(), "Invalid modem_queue_code: %d", this->modem_queue_code);
+                break;
+        }
+        
     }
 
     // sends an acoustic message to a target vehicle
