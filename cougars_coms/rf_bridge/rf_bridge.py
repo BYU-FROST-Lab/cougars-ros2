@@ -402,11 +402,11 @@ class RFBridge(Node):
 
         init_msg = SystemControl()
         init_msg.header.stamp = self.get_clock().now().to_msg()
-        init_msg.start.data = system_control_msg.get("start", False)
-        init_msg.rosbag_flag.data = system_control_msg.get("rosbag_flag", False)
-        init_msg.rosbag_prefix = system_control_msg.get("rosbag_prefix", "")
-        init_msg.thruster_arm.data = system_control_msg.get("thruster_arm", False)
-        init_msg.dvl_acoustics.data = system_control_msg.get("dvl_acoustics", False)
+        init_msg.start.data = system_control_msg.start
+        init_msg.rosbag_flag.data = system_control_msg.rosbag_flag
+        init_msg.rosbag_prefix = system_control_msg.rosbag_prefix
+        init_msg.thruster_arm.data = system_control_msg.thruster_arm
+        init_msg.dvl_acoustics.data = system_control_msg.dvl_acoustics
         
         self.init_publisher.publish(init_msg)
         self.get_logger().info(f"Published INIT message with parameters: start={init_msg.start.data}, rosbag={init_msg.rosbag_flag.data}, thruster_arm={init_msg.thruster_arm.data}, dvl_acoustics={init_msg.dvl_acoustics.data}")
