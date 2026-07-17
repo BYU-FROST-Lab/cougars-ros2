@@ -134,11 +134,13 @@ private:
       auto modem_imu = std::make_shared<sensor_msgs::msg::Imu>();
 
       modem_imu->header.stamp = msg->header.stamp;
-      modem_imu->header.frame_id = ns_prefix()+"robot";
+      modem_imu->header.frame_id = "coug2/base_link";
 
       geometry_msgs::msg::TransformStamped tf_enu_to_robot =
           tf_buffer_->lookupTransform("enu", ns_prefix()+"robot", tf2::TimePointZero);
 
+      modem_imu->orientation_covariance = {1e-6, 0, 0, 0, 1e-6, 0, 0, 0, 1e-6};
+      
       modem_imu->orientation.x = tf_enu_to_robot.transform.rotation.x;
       modem_imu->orientation.y = tf_enu_to_robot.transform.rotation.y;
       modem_imu->orientation.z = tf_enu_to_robot.transform.rotation.z;

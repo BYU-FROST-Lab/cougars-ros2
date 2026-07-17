@@ -127,6 +127,7 @@ private:
             double pressure, temperature;
             if (sscanf(message.c_str(), "$DEPTH,%lf,%lf", &pressure, &temperature) == 2) {
                 sensor_msgs::msg::FluidPressure pressure_msg;
+                pressure_msg.header.frame_id = "/coug2/base_link";
                 pressure_msg.header.stamp = this->now();
                 pressure_msg.fluid_pressure = pressure;
                 pressure_msg.variance = 0.0;  // Variance can be set if known
