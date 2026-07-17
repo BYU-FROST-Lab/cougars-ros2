@@ -142,43 +142,48 @@ class RequestStatusMessage(RadioMessage):
 class StatusResponseMessage(RadioMessage):
 
     MESSAGE_ID: ClassVar[MessageID] = MessageID.STATUS_RESPONSE
-    x: float
-    y: float
-    depth: float
-    orientation_x: float
-    orientation_y: float
-    orientation_z: float
-    orientation_w: float
-    pressure: float
-    battery_voltage: float
-    battery_current: float
-    dvl_velocity_x: float
-    dvl_velocity_y: float
-    dvl_velocity_z: float
-    dvl_altitude: float
-    waypoint_state: int
-    horizontal_distance_error: float
-    depth_error: float
-    bearing_error: float
-    mission_id: int
-    mission_state: int
-    waypoints_completed: int
-    waypoints_total: int
-    elapsed_time: float
+    x: float = 0.0
+    y: float = 0.0
+    depth: float = 0.0
+    orientation_x: float = 0.0
+    orientation_y: float = 0.0
+    orientation_z: float = 0.0
+    orientation_w: float = 0.0
+    pressure: float = 0.0
+    battery_voltage: float = 0.0
+    battery_current: float = 0.0
+    dvl_velocity_x: float = 0.0
+    dvl_velocity_y: float = 0.0
+    dvl_velocity_z: float = 0.0
+    dvl_altitude: float = 0.0
+    waypoint_state: int = 0
+    horizontal_distance_error: float = 0.0
+    depth_error: float = 0.0
+    bearing_error: float = 0.0
+    mission_id: int = 0
+    mission_state: int = 0
+    waypoints_completed: int = 0
+    waypoints_total: int = 0
+    elapsed_time: float = 0.0
 
-    _STRUCT = struct.Struct("<9fB3f4Bf")
+    _STRUCT = struct.Struct("<14fB3f4Bf")
 
     def pack(self) -> bytes:
         return self.pack_header() + self._STRUCT.pack(
             self.x,
             self.y,
             self.depth,
+            self.orientation_x,
+            self.orientation_y,
+            self.orientation_z,
+            self.orientation_w,
             self.pressure,
             self.battery_voltage,
             self.battery_current,
             self.dvl_velocity_x,
             self.dvl_velocity_y,
             self.dvl_velocity_z,
+            self.dvl_altitude,
             self.waypoint_state,
             self.horizontal_distance_error,
             self.depth_error,
@@ -192,26 +197,34 @@ class StatusResponseMessage(RadioMessage):
 
     @classmethod
     def unpack(cls, data: bytes) -> "StatusResponseMessage":
-        values = cls._STRUCT.unpack(data[: cls._STRUCT.size])
+        _, src_id = cls.unpack_header(data)
+        offset = cls._HEADER_STRUCT.size
+        values = cls._STRUCT.unpack(data[offset : offset + cls._STRUCT.size])
         return cls(
+            src_id=src_id,
             x=values[0],
             y=values[1],
             depth=values[2],
-            pressure=values[3],
-            battery_voltage=values[4],
-            battery_current=values[5],
-            dvl_velocity_x=values[6],
-            dvl_velocity_y=values[7],
-            dvl_velocity_z=values[8],
-            waypoint_state=values[9],
-            horizontal_distance_error=values[10],
-            depth_error=values[11],
-            bearing_error=values[12],
-            mission_id=values[13],
-            mission_state=values[14],
-            waypoints_completed=values[15],
-            waypoints_total=values[16],
-            elapsed_time=values[17]
+            orientation_x=values[3],
+            orientation_y=values[4],
+            orientation_z=values[5],
+            orientation_w=values[6],
+            pressure=values[7],
+            battery_voltage=values[8],
+            battery_current=values[9],
+            dvl_velocity_x=values[10],
+            dvl_velocity_y=values[11],
+            dvl_velocity_z=values[12],
+            dvl_altitude=values[13],
+            waypoint_state=values[14],
+            horizontal_distance_error=values[15],
+            depth_error=values[16],
+            bearing_error=values[17],
+            mission_id=values[18],
+            mission_state=values[19],
+            waypoints_completed=values[20],
+            waypoints_total=values[21],
+            elapsed_time=values[22]
         )
     
 @dataclass
