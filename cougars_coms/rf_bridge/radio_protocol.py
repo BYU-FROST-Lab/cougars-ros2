@@ -21,12 +21,13 @@ class MessageID(IntEnum):
     CONFIRM_SURFACE_COMMAND = 0x0A
     MISSION_RECEIVED = 0x0C
 
+@dataclass
 class RadioMessage:
     MESSAGE_ID: ClassVar[MessageID]
+    src_id: int
 
     def pack(self) -> bytes:
         raise NotImplementedError
-    src_id: int
 
     _HEADER_STRUCT = struct.Struct("<BB")
 
@@ -45,7 +46,6 @@ class RadioMessage:
 @dataclass
 class PingMessage(RadioMessage):
     MESSAGE_ID: ClassVar[MessageID] = MessageID.PING
-    src_id: int
 
     def pack(self) -> bytes:
         return self.pack_header()
