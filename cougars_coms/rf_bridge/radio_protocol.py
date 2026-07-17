@@ -166,7 +166,7 @@ class StatusResponseMessage(RadioMessage):
     waypoints_total: int = 0
     elapsed_time: float = 0.0
 
-    _STRUCT = struct.Struct("<14fB3f28s3Bf")
+    _STRUCT = struct.Struct("<14fB3f12s3Bf")
 
     def pack(self) -> bytes:
         return self.pack_header() + self._STRUCT.pack(
@@ -188,7 +188,7 @@ class StatusResponseMessage(RadioMessage):
             self.horizontal_distance_error,
             self.depth_error,
             self.bearing_error,
-            self.mission_id.encode("utf-8")[:28].ljust(28, b"\x00"),
+            self.mission_id.encode("utf-8")[:12].ljust(12, b"\x00"),
             self.mission_state,
             self.waypoints_completed,
             self.waypoints_total,
