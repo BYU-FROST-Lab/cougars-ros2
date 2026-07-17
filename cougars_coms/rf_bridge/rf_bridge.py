@@ -17,7 +17,7 @@ from digi.xbee.devices import XBeeDevice, RemoteXBeeDevice
 from digi.xbee.exception import TransmitException
 from pathlib import Path
 
-from cougars_coms.rf_bridge import radio_protocol as rp
+import radio_protocol as rp
 
 import json
 import math

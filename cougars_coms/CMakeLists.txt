@@ -49,6 +49,7 @@ install(TARGETS
 install(
   PROGRAMS
     rf_bridge/rf_bridge.py
+    rf_bridge/radio_protocol.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
