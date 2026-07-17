@@ -325,7 +325,7 @@ class RFBridge(Node):
             elif msg_id == int(rp.MessageID.SYSTEM_CONTROL):
                 self.get_logger().info(f"Received INIT command ")
                 self.init_vehicle(payload, return_address)
-            elif msg_id == int(rp.MessageID.ORIGIN):
+            elif msg_id == int(rp.MessageID.ORIGIN_UPDATE):
                 self.publish_origin(payload)
             # elif msg_id == int(rp.MessageID.MISSION):
             #     self.publish_mission(payload)
@@ -354,6 +354,8 @@ class RFBridge(Node):
             f"Published origin received over radio: lat={origin_msg.latitude}, "
             f"lon={origin_msg.longitude}, alt={origin_msg.altitude}"
         )
+        response = rp.ConfirmOriginUpdateMessage(src_id=self.vehicle_id).pack()
+        self.send_message(response, origin_msg)
 
     def publish_mission(self, data):
         try:
