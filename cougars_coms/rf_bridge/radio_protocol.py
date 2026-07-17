@@ -64,7 +64,7 @@ class SystemControlMessage(RadioMessage):
     thruster_arm: bool
     dvl_acoustics: bool
 
-    _STRUCT = struct.Struct("<BBB28sBB")
+    _STRUCT = struct.Struct("<BBBB28sBB")
 
     def pack(self) -> bytes:
         prefix = self.rosbag_prefix.encode("utf-8")[:28].ljust(28, b"\x00")
@@ -160,13 +160,13 @@ class StatusResponseMessage(RadioMessage):
     horizontal_distance_error: float = 0.0
     depth_error: float = 0.0
     bearing_error: float = 0.0
-    mission_id: int = 0
+    mission_id: str = ""
     mission_state: int = 0
     waypoints_completed: int = 0
     waypoints_total: int = 0
     elapsed_time: float = 0.0
 
-    _STRUCT = struct.Struct("<14fB3f4Bf")
+    _STRUCT = struct.Struct("<14fB3f28s3Bf")
 
     def pack(self) -> bytes:
         return self.pack_header() + self._STRUCT.pack(
@@ -188,7 +188,7 @@ class StatusResponseMessage(RadioMessage):
             self.horizontal_distance_error,
             self.depth_error,
             self.bearing_error,
-            self.mission_id,
+            self.mission_id.encode("utf-8")[:28].ljust(28, b"\x00"),
             self.mission_state,
             self.waypoints_completed,
             self.waypoints_total,
@@ -220,7 +220,7 @@ class StatusResponseMessage(RadioMessage):
             horizontal_distance_error=values[15],
             depth_error=values[16],
             bearing_error=values[17],
-            mission_id=values[18],
+            mission_id=values[18].split(b"\x00", 1)[0].decode("utf-8", errors="ignore"),
             mission_state=values[19],
             waypoints_completed=values[20],
             waypoints_total=values[21],
