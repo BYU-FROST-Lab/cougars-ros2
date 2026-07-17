@@ -290,10 +290,8 @@ public:
         VehicleStatus status_msg;
 
         //fill in x and y depending on whether we are using factor graph or DVL
-        status_msg.waypoint_num = 0; // Placeholder, set to 0 for now
-        status_msg.waypoint_x = this->position_x;
-        status_msg.waypoint_y = this->position_y;
-        status_msg.waypoint_depth = this->position_z;
+        status_msg.waypoint = this->waypoint_num; // Set to current waypoint
+
         
         status_msg.x = this->dvl_position_x;
         status_msg.y = this->dvl_position_y;
@@ -464,9 +462,10 @@ private:
     float recent_azimuth;
     float recent_elevation;
 
-    int localization_queue_buffer;
+    int queue_buffer;
+    int modem_queue_code;
     float collision_guard_wait_;
-    rclcpp::TimerBase::SharedPtr localization_queue_timer_;
+    rclcpp::TimerBase::SharedPtr queue_timer_;
     bool use_factor_graph_;
 
     rclcpp::Time last_modem_msg_time_;

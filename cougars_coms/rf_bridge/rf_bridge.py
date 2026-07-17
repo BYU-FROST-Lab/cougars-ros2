@@ -17,7 +17,7 @@ from digi.xbee.devices import XBeeDevice, RemoteXBeeDevice
 from digi.xbee.exception import TransmitException
 from pathlib import Path
 
-import radio_protocol as rp
+from cougars_coms.rf_bridge import radio_protocol as rp
 
 import json
 import math
@@ -306,7 +306,9 @@ class RFBridge(Node):
 
             msg_id = payload[0] if len(payload) > 0 else None
             if msg_id is not None:
-                self.get_logger().debug(f"Received message ID {msg_id} from {sender_id}")
+                self.get_logger().info(f"Received message ID {msg_id} from {sender_id}")
+            else:
+                self.get_logger().info(f"Received message with no ID from {sender_id}")
             
             if msg_id == int(rp.MessageID.REQUEST_STATUS):
                 response = self.get_all_status_data()
