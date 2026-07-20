@@ -165,8 +165,14 @@ class StatusResponseMessage(RadioMessage):
     waypoints_completed: int = 0
     waypoints_total: int = 0
     elapsed_time: float = 0.0
+    cov_x: float = 0.0
+    cov_y: float = 0.0
+    cov_z: float = 0.0
+    cov_roll: float = 0.0
+    cov_pitch: float = 0.0
+    cov_yaw: float = 0.0
 
-    _STRUCT = struct.Struct("<14fB3f12s3Bf")
+    _STRUCT = struct.Struct("<14fB3f12s3Bf6f")
 
     def pack(self) -> bytes:
         return self.pack_header() + self._STRUCT.pack(
@@ -192,7 +198,13 @@ class StatusResponseMessage(RadioMessage):
             self.mission_state,
             self.waypoints_completed,
             self.waypoints_total,
-            self.elapsed_time
+            self.elapsed_time,
+            self.cov_x,
+            self.cov_y,
+            self.cov_z,
+            self.cov_roll,
+            self.cov_pitch,
+            self.cov_yaw
         )
 
     @classmethod
@@ -224,7 +236,13 @@ class StatusResponseMessage(RadioMessage):
             mission_state=values[19],
             waypoints_completed=values[20],
             waypoints_total=values[21],
-            elapsed_time=values[22]
+            elapsed_time=values[22],
+            cov_x=values[23],
+            cov_y=values[24],
+            cov_z=values[25],
+            cov_roll=values[26],
+            cov_pitch=values[27],
+            cov_yaw=values[28]
         )
     
 @dataclass

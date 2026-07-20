@@ -156,61 +156,27 @@ class RFBridge(Node):
         self.MISSION_FILE = "mission.yaml"
 
     def battery_callback(self, msg):
-        self.latest_battery = {
-            "voltage": msg.voltage,
-            "current": msg.current,
-            "percentage": msg.percentage,
-        }
+        self.latest_battery = msg
         self.get_logger().debug("Updated battery data")
 
     def state_estimate_callback(self, msg):
-        pose = msg.pose.pose
-        self.latest_state_estimate = {
-            "x": pose.position.x,
-            "y": pose.position.y,
-            "z": pose.position.z,
-            "qx": pose.orientation.x,
-            "qy": pose.orientation.y,
-            "qz": pose.orientation.z,
-            "qw": pose.orientation.w,
-        }
+        self.latest_state_estimate = msg
         self.get_logger().debug("Updated state estimate data")
 
     def dvl_callback(self, msg):
-        self.latest_dvl_velocity = {
-            "x": msg.velocity.x,
-            "y": msg.velocity.y,
-            "z": msg.velocity.z,
-            "velocity_valid": bool(msg.velocity_valid),
-            "altitude": msg.altitude,
-            "fom": msg.fom,
-        }
+        self.latest_dvl_velocity = msg
         self.get_logger().debug("Updated DVL velocity data")
 
     def mission_feedback_callback(self, msg):
-        self.latest_mission_feedback = {
-            "state": msg.state,
-            "elapsed_time": msg.elapsed_time,
-            "waypoints_completed": msg.waypoints_completed,
-            "waypoints_total": msg.waypoints_total,
-            "mission_id": msg.mission_id,
-        }
+        self.latest_mission_feedback = msg
         self.get_logger().debug("Updated mission feedback data")
 
     def waypoint_feedback_callback(self, msg):
-        self.latest_waypoint_feedback = {
-            "state": msg.state,
-            "horizontal_distance_error": msg.horizontal_distance_error,
-            "depth_error": msg.depth_error,
-            "bearing_error": msg.bearing_error,
-        }
+        self.latest_waypoint_feedback = msg
         self.get_logger().debug("Updated waypoint feedback data")
-    
+
     def pressure_callback(self, msg):
-        self.latest_pressure = {
-            "fluid_pressure": msg.fluid_pressure,
-            "variance": msg.variance,
-        }
+        self.latest_pressure = msg
         self.get_logger().debug("Updated pressure data")
 
     def tx_callback(self, msg):
@@ -267,35 +233,43 @@ class RFBridge(Node):
         status_response = rp.StatusResponseMessage(src_id=self.vehicle_id)
 
         if self.latest_state_estimate != "NO_DATA":
-            status_response.x = self.latest_state_estimate["x"]
-            status_response.y = self.latest_state_estimate["y"]
-            status_response.depth = self.latest_state_estimate["z"]
-            status_response.orientation_x = self.latest_state_estimate["qx"]
-            status_response.orientation_y = self.latest_state_estimate["qy"]
-            status_response.orientation_z = self.latest_state_estimate["qz"]
-            status_response.orientation_w = self.latest_state_estimate["qw"]
+            pose = self.latest_state_estimate.pose.pose
+            status_response.x = pose.position.x
+            status_response.y = pose.position.y
+            status_response.depth = pose.position.z
+            status_response.orientation_x = pose.orientation.x
+            status_response.orientation_y = pose.orientation.y
+            status_response.orientation_z = pose.orientation.z
+            status_response.orientation_w = pose.orientation.w
+            covariance = self.latest_state_estimate.pose.covariance
+            status_response.cov_x = covariance[0]
+            status_response.cov_y = covariance[7]
+            status_response.cov_z = covariance[14]
+            status_response.cov_roll = covariance[21]
+            status_response.cov_pitch = covariance[28]
+            status_response.cov_yaw = covariance[35]
         if self.latest_pressure != "NO_DATA":
-            status_response.pressure = self.latest_pressure["fluid_pressure"]
-            status_response.pressure_variance = self.latest_pressure["variance"]
+            status_response.pressure = self.latest_pressure.fluid_pressure
+            status_response.pressure_variance = self.latest_pressure.variance
         if self.latest_battery != "NO_DATA":
-            status_response.battery_voltage = self.latest_battery["voltage"]
-            status_response.battery_current = self.latest_battery["current"]
+            status_response.battery_voltage = self.latest_battery.voltage
+            status_response.battery_current = self.latest_battery.current
         if self.latest_dvl_velocity != "NO_DATA":
-            status_response.dvl_velocity_x = self.latest_dvl_velocity["x"]
-            status_response.dvl_velocity_y = self.latest_dvl_velocity["y"]
-            status_response.dvl_velocity_z = self.latest_dvl_velocity["z"]
-            status_response.dvl_altitude = self.latest_dvl_velocity["altitude"]
+            status_response.dvl_velocity_x = self.latest_dvl_velocity.velocity.x
+            status_response.dvl_velocity_y = self.latest_dvl_velocity.velocity.y
+            status_response.dvl_velocity_z = self.latest_dvl_velocity.velocity.z
+            status_response.dvl_altitude = self.latest_dvl_velocity.altitude
         if self.latest_waypoint_feedback != "NO_DATA":
-            status_response.waypoint_state = self.latest_waypoint_feedback["state"]
-            status_response.horizontal_distance_error = self.latest_waypoint_feedback["horizontal_distance_error"]
-            status_response.depth_error = self.latest_waypoint_feedback["depth_error"]
-            status_response.bearing_error = self.latest_waypoint_feedback["bearing_error"]
+            status_response.waypoint_state = self.latest_waypoint_feedback.state
+            status_response.horizontal_distance_error = self.latest_waypoint_feedback.horizontal_distance_error
+            status_response.depth_error = self.latest_waypoint_feedback.depth_error
+            status_response.bearing_error = self.latest_waypoint_feedback.bearing_error
         if self.latest_mission_feedback != "NO_DATA":
-            status_response.mission_id = self.latest_mission_feedback["mission_id"]
-            status_response.mission_state = self.latest_mission_feedback["state"]
-            status_response.waypoints_completed = self.latest_mission_feedback["waypoints_completed"]
-            status_response.waypoints_total = self.latest_mission_feedback["waypoints_total"]
-            status_response.elapsed_time = self.latest_mission_feedback["elapsed_time"]
+            status_response.mission_id = self.latest_mission_feedback.mission_id
+            status_response.mission_state = self.latest_mission_feedback.state
+            status_response.waypoints_completed = self.latest_mission_feedback.waypoints_completed
+            status_response.waypoints_total = self.latest_mission_feedback.waypoints_total
+            status_response.elapsed_time = self.latest_mission_feedback.elapsed_time
 
         return status_response.pack()
 
