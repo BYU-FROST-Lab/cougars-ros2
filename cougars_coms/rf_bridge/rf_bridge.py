@@ -106,7 +106,7 @@ class RFBridge(Node):
         
         self.state_estimate_sub = self.create_subscription(
             Odometry,
-            'state_estimate',
+            'odometry/global',
             self.state_estimate_callback,
             10)
 
