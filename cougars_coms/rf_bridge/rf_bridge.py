@@ -425,7 +425,7 @@ class RFBridge(Node):
             if mission_msg.points:
                 for idx, point in enumerate(mission_msg.points):
                     self.get_logger().info(
-                        f"[MISSION] Waypoint {idx}: lat={point.latitude}, lon={point.longitude}, alt={point.altitude}"
+                        f"[MISSION] Waypoint {idx}: lat={point.position.latitude}, lon={point.position.longitude}, alt={point.position.altitude}"
                     )
             else:
                 self.get_logger().warn(
