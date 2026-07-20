@@ -172,7 +172,9 @@ class StatusResponseMessage(RadioMessage):
     cov_pitch: float = 0.0
     cov_yaw: float = 0.0
 
-    _STRUCT = struct.Struct("<14fB3f12s3Bf6f")
+    # Half-precision (2-byte) floats keep the packed message under the
+    # single-packet XBee payload limit at the cost of some numeric precision.
+    _STRUCT = struct.Struct("<14eB3e12s3Be6e")
 
     def pack(self) -> bytes:
         return self.pack_header() + self._STRUCT.pack(
