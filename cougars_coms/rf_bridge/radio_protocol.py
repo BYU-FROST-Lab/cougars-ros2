@@ -9,6 +9,8 @@ from typing import ClassVar
 
 _INT16_MIN = -32768
 _INT16_MAX = 32767
+_INT32_MIN = -2147483648
+_INT32_MAX = 2147483647
 
 def pack_fixed16(value: float, scale: float) -> int:
     """Scale a float by `scale` and round to an int16, clamping out-of-range values instead of raising."""
@@ -17,6 +19,15 @@ def pack_fixed16(value: float, scale: float) -> int:
     return int(max(_INT16_MIN, min(_INT16_MAX, round(value * scale))))
 
 def unpack_fixed16(raw: int, scale: float) -> float:
+    return raw / scale
+
+def pack_fixed32(value: float, scale: float) -> int:
+    """Scale a float by `scale` and round to an int32, clamping out-of-range values instead of raising."""
+    if value != value:  # NaN
+        value = 0.0
+    return int(max(_INT32_MIN, min(_INT32_MAX, round(value * scale))))
+
+def unpack_fixed32(raw: int, scale: float) -> float:
     return raw / scale
 
 class MessageID(IntEnum):
@@ -191,18 +202,20 @@ class StatusResponseMessage(RadioMessage):
     # 65504 and silently lose precision in ways that are hard to predict).
     # Fields whose range isn't reliably bounded (pressure in Pascals, mission
     # elapsed time, covariance) are kept as full 4-byte floats.
-    _POSITION_SCALE = 100.0      # cm resolution, +/-327.67 m range
+    # x, y, and horizontal_distance_error are packed as int32 (not int16) so they
+    # can range across a full mission area rather than being capped at +/-327.67 m.
+    _POSITION_SCALE = 100.0      # cm resolution; depth stays int16 (+/-327.67 m), x/y are int32
     _ORIENTATION_SCALE = 10000.0 # 1e-4 resolution, quaternion components are in [-1, 1]
     _ELECTRICAL_SCALE = 100.0    # centi-volt / centi-amp resolution
     _VELOCITY_SCALE = 1000.0     # mm/s resolution, +/-32.767 m/s range
-    _DISTANCE_SCALE = 100.0      # cm resolution, +/-327.67 m range
+    _DISTANCE_SCALE = 100.0      # cm resolution; horizontal_distance_error is int32, depth/bearing stay int16
 
-    _STRUCT = struct.Struct("<7hf6hB3h12s3Bf6f")
+    _STRUCT = struct.Struct("<2i5hf6hBi2h12s3Bf6f")
 
     def pack(self) -> bytes:
         return self.pack_header() + self._STRUCT.pack(
-            pack_fixed16(self.x, self._POSITION_SCALE),
-            pack_fixed16(self.y, self._POSITION_SCALE),
+            pack_fixed32(self.x, self._POSITION_SCALE),
+            pack_fixed32(self.y, self._POSITION_SCALE),
             pack_fixed16(self.depth, self._POSITION_SCALE),
             pack_fixed16(self.orientation_x, self._ORIENTATION_SCALE),
             pack_fixed16(self.orientation_y, self._ORIENTATION_SCALE),
@@ -216,7 +229,7 @@ class StatusResponseMessage(RadioMessage):
             pack_fixed16(self.dvl_velocity_z, self._VELOCITY_SCALE),
             pack_fixed16(self.dvl_altitude, self._DISTANCE_SCALE),
             self.waypoint_state,
-            pack_fixed16(self.horizontal_distance_error, self._DISTANCE_SCALE),
+            pack_fixed32(self.horizontal_distance_error, self._DISTANCE_SCALE),
             pack_fixed16(self.depth_error, self._DISTANCE_SCALE),
             pack_fixed16(self.bearing_error, self._DISTANCE_SCALE),
             self.mission_id.encode("utf-8")[:12].ljust(12, b"\x00"),
@@ -239,8 +252,8 @@ class StatusResponseMessage(RadioMessage):
         values = cls._STRUCT.unpack(data[offset : offset + cls._STRUCT.size])
         return cls(
             src_id=src_id,
-            x=unpack_fixed16(values[0], cls._POSITION_SCALE),
-            y=unpack_fixed16(values[1], cls._POSITION_SCALE),
+            x=unpack_fixed32(values[0], cls._POSITION_SCALE),
+            y=unpack_fixed32(values[1], cls._POSITION_SCALE),
             depth=unpack_fixed16(values[2], cls._POSITION_SCALE),
             orientation_x=unpack_fixed16(values[3], cls._ORIENTATION_SCALE),
             orientation_y=unpack_fixed16(values[4], cls._ORIENTATION_SCALE),
@@ -254,7 +267,7 @@ class StatusResponseMessage(RadioMessage):
             dvl_velocity_z=unpack_fixed16(values[12], cls._VELOCITY_SCALE),
             dvl_altitude=unpack_fixed16(values[13], cls._DISTANCE_SCALE),
             waypoint_state=values[14],
-            horizontal_distance_error=unpack_fixed16(values[15], cls._DISTANCE_SCALE),
+            horizontal_distance_error=unpack_fixed32(values[15], cls._DISTANCE_SCALE),
             depth_error=unpack_fixed16(values[16], cls._DISTANCE_SCALE),
             bearing_error=unpack_fixed16(values[17], cls._DISTANCE_SCALE),
             mission_id=values[18].split(b"\x00", 1)[0].decode("utf-8", errors="ignore"),
