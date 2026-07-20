@@ -110,6 +110,7 @@ struct RequestTimestamp {
 }__attribute__((packed));
 
 struct TimeStamp {
+    COUG_MSG_ID msg_id = TIMESTAMP;
     uint32_t seconds;
     uint32_t nanoseconds;
 };
