@@ -139,6 +139,7 @@ private:
         if (msg->start.data == false) {
             RCLCPP_INFO(this->get_logger(), "Turning off WaypointController.");
             waypoint_state_ = cougars_interfaces::msg::WaypointFeedback::STATE_IDLE;
+            publish_feedback(0,0);
         } else {
             get_parameters();
         }

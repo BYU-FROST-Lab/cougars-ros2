@@ -152,6 +152,7 @@ public:
             } else {
                 RCLCPP_DEBUG(this->get_logger(), "Mission is being stopped.");
                 this->mission_state = cougars_interfaces::msg::MissionFeedback::STATE_ABORTED;
+                publishMissionFeedback();
             }
         }
     }
