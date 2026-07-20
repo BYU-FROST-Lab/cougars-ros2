@@ -6,10 +6,11 @@ std_msgs/Header header
 unique_identifier_msgs/UUID waypoint_id   # ID of the current target waypoint
 
 # --- Waypoint state ---
-uint8 STATE_TRANSITING  = 0   # moving toward waypoint
-uint8 STATE_ARRIVED     = 1   # within acceptance radius
-uint8 STATE_PARKING     = 2   # loitering at a park waypoint
-uint8 STATE_SKIPPED     = 3   # waypoint unreachable, skipped
+uint8 STATE_IDLE        = 0
+uint8 STATE_TRANSITING  = 1   # moving toward waypoint
+uint8 STATE_ARRIVED     = 2   # within acceptance radius
+uint8 STATE_PARKING     = 3   # loitering at a park waypoint
+uint8 STATE_SKIPPED     = 4   # waypoint unreachable, skipped
 uint8 state
 
 # --- Error metrics ---

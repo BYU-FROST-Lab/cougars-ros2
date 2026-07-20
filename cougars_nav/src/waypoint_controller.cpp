@@ -138,7 +138,7 @@ private:
     void system_control_callback(const cougars_interfaces::msg::SystemControl::SharedPtr msg) {
         if (msg->start.data == false) {
             RCLCPP_INFO(this->get_logger(), "Turning off WaypointController.");
-            waypoint_state_ = cougars_interfaces::msg::WaypointFeedback::STATE_PARKING;
+            waypoint_state_ = cougars_interfaces::msg::WaypointFeedback::STATE_IDLE;
         } else {
             get_parameters();
         }
@@ -173,7 +173,8 @@ private:
 
         if (waypoint_state_ == cougars_interfaces::msg::WaypointFeedback::STATE_ARRIVED ||
             waypoint_state_ == cougars_interfaces::msg::WaypointFeedback::STATE_SKIPPED ||
-            waypoint_state_ == cougars_interfaces::msg::WaypointFeedback::STATE_PARKING) {
+            waypoint_state_ == cougars_interfaces::msg::WaypointFeedback::STATE_PARKING ||
+            waypoint_state_ == cougars_interfaces::msg::WaypointFeedback::STATE_IDLE) {
             return;
         }
 
@@ -332,7 +333,7 @@ private:
     double current_y_           = 0.0;
     double current_heading_rad_ = 0.0;
 
-    uint8_t        waypoint_state_      = cougars_interfaces::msg::WaypointFeedback::STATE_TRANSITING;
+    uint8_t        waypoint_state_      = cougars_interfaces::msg::WaypointFeedback::STATE_IDLE;
     rclcpp::Time   waypoint_start_time_;
     bool           in_slip_             = false;
     rclcpp::Time   slip_entry_time_;
