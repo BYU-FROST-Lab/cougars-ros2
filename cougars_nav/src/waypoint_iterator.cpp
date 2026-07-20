@@ -164,9 +164,8 @@ public:
         feedback_msg.waypoints_completed = this->current_waypoint_index;
         feedback_msg.waypoints_total = this->waypoint_list.size();
         if (this->mission_state == cougars_interfaces::msg::MissionFeedback::STATE_RUNNING) {
-            feedback_msg.current_waypoint = this->waypoint_list[this->current_waypoint_index];
+            feedback_msg.elapsed_time = (this->now() - this->start_time).seconds();
         }
-        feedback_msg.elapsed_time = (this->now() - this->start_time).seconds();
         feedback_msg.current = this->current_wp_feedback;
         // Finds the ID's for each waypoint and adds them to the appropriate list completed, skipped, or are remaining
         for (size_t i = 0; i < this->current_waypoint_index; i++) {
