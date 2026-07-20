@@ -174,7 +174,9 @@ class StatusResponseMessage(RadioMessage):
 
     # Half-precision (2-byte) floats keep the packed message under the
     # single-packet XBee payload limit at the cost of some numeric precision.
-    _STRUCT = struct.Struct("<14eB3e12s3Be6e")
+    # pressure is kept as a full 4-byte float since it's in Pascals and
+    # routinely exceeds the half-float max of 65504 (e.g. ~101325 Pa at the surface).
+    _STRUCT = struct.Struct("<7ef6eB3e12s3Be6e")
 
     def pack(self) -> bytes:
         return self.pack_header() + self._STRUCT.pack(
