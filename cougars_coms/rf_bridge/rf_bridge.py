@@ -332,12 +332,6 @@ class RFBridge(Node):
             # elif msg_id == int(rp.MessageID.KEY_CONTROL):
             #     self.get_logger().debug(f"Received KEY_CONTROL command {payload}")
             #     self.handle_key_control(payload)
-            elif msg_id == int(rp.MessageID.FILE_START):
-                self.handle_file_start(payload, return_address)
-            elif msg_id == int(rp.MessageID.FILE_CHUNK):
-                self.handle_file_chunk(payload, return_address)
-            elif msg_id == int(rp.MessageID.FILE_END):
-                self.handle_file_end(payload, return_address)
         except Exception as e:
             self.get_logger().error(f"Error in data_receive_callback: {e}")
             # self.get_logger().error(traceback.format_exc())
