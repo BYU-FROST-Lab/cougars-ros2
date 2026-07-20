@@ -147,6 +147,7 @@ class RFBridge(Node):
         self.active_transfers = {}  # transfer_id -> transfer_info
         self.file_chunks = {}       # transfer_id -> {chunk_num -> data}
         self.fragment_transfers = {}
+        self.mission_transfers = {}  # transfer_id -> {"chunks": {}, "total": int, "address": addr}
         self.received_files_dir = "/tmp/received_missions"  # Directory to save received files
         os.makedirs(self.received_files_dir, exist_ok=True)
 
@@ -305,10 +306,27 @@ class RFBridge(Node):
             return_address = xbee_message.remote_device.get_64bit_addr()
 
             msg_id = payload[0] if len(payload) > 0 else None
+            if isinstance(payload, (bytes, bytearray)) and payload.startswith(b"{\""):
+                try:
+                    decoded = json.loads(payload.decode("utf-8"))
+                except Exception:
+                    decoded = None
+                if isinstance(decoded, dict) and decoded.get("message") == "MISSION_FRAGMENT":
+                    self.handle_mission_fragment(decoded, return_address)
+                    return
+            if payload == b"MISSION_DONE":
+                return
             if msg_id is not None:
                 self.get_logger().info(f"Received message ID {msg_id} from {sender_id}")
             else:
                 self.get_logger().info(f"Received message with no ID from {sender_id}")
+
+            if msg_id not in [int(rp.MessageID.PING), int(rp.MessageID.STATUS_RESPONSE), int(rp.MessageID.CONFIRM_DISARM_THRUSTER), int(rp.MessageID.CONFIRM_SYSTEM_CONTROL)]:
+                try:
+                    self.publish_mission(payload)
+                    return
+                except Exception:
+                    pass
             
             if msg_id == int(rp.MessageID.REQUEST_STATUS):
                 response = self.get_all_status_data()
@@ -336,6 +354,29 @@ class RFBridge(Node):
             self.get_logger().error(f"Error in data_receive_callback: {e}")
             # self.get_logger().error(traceback.format_exc())
 
+    def handle_mission_fragment(self, fragment, return_address):
+        transfer_id = fragment.get("id")
+        chunk_index = fragment.get("i")
+        total_chunks = fragment.get("n")
+        data = fragment.get("data")
+
+        if transfer_id is None or chunk_index is None or total_chunks is None or data is None:
+            return
+
+        transfer = self.mission_transfers.setdefault(transfer_id, {
+            "chunks": {},
+            "total": total_chunks,
+            "address": return_address,
+        })
+        transfer["chunks"][chunk_index] = base64.b64decode(data)
+
+        if len(transfer["chunks"]) != transfer["total"]:
+            return
+
+        payload = b"".join(transfer["chunks"][index] for index in range(transfer["total"]))
+        del self.mission_transfers[transfer_id]
+        self.publish_mission(payload)
+
     def publish_origin(self, data):
 
         origin = rp.OriginUpdateMessage.unpack(data)
@@ -353,8 +394,11 @@ class RFBridge(Node):
 
     def publish_mission(self, data):
         try:
-            mission_data = base64.b64decode(data["data"])
-            mission_msg = deserialize_message(mission_data, RouteNetwork)
+            if isinstance(data, (bytes, bytearray)):
+                mission_msg = deserialize_message(data, RouteNetwork)
+            else:
+                mission_data = base64.b64decode(data["data"])
+                mission_msg = deserialize_message(mission_data, RouteNetwork)
             self.mission_publisher.publish(mission_msg)
             self.get_logger().info(
                 f"Published RouteNetwork received over radio with "
