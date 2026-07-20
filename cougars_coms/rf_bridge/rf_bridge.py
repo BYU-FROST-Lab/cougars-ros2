@@ -306,6 +306,14 @@ class RFBridge(Node):
             return_address = xbee_message.remote_device.get_64bit_addr()
 
             msg_id = payload[0] if len(payload) > 0 else None
+            if payload == b"MISSION_DONE":
+                return
+            if msg_id is not None:
+                self.get_logger().debug(f"Received message ID {msg_id} from {sender_id}")
+            else:
+                self.get_logger().debug(f"Received message with no ID from {sender_id}")
+
+            # Check for JSON mission fragments first
             if isinstance(payload, (bytes, bytearray)) and payload.startswith(b"{\""):
                 try:
                     decoded = json.loads(payload.decode("utf-8"))
@@ -314,19 +322,6 @@ class RFBridge(Node):
                 if isinstance(decoded, dict) and decoded.get("message") == "MISSION_FRAGMENT":
                     self.handle_mission_fragment(decoded, return_address)
                     return
-            if payload == b"MISSION_DONE":
-                return
-            if msg_id is not None:
-                self.get_logger().info(f"Received message ID {msg_id} from {sender_id}")
-            else:
-                self.get_logger().info(f"Received message with no ID from {sender_id}")
-
-            if msg_id not in [int(rp.MessageID.PING), int(rp.MessageID.STATUS_RESPONSE), int(rp.MessageID.CONFIRM_DISARM_THRUSTER), int(rp.MessageID.CONFIRM_SYSTEM_CONTROL)]:
-                try:
-                    self.publish_mission(payload)
-                    return
-                except Exception:
-                    pass
             
             if msg_id == int(rp.MessageID.REQUEST_STATUS):
                 response = self.get_all_status_data()
@@ -344,12 +339,10 @@ class RFBridge(Node):
                 self.get_logger().info(f"Received INIT command ")
                 self.init_vehicle(payload, return_address)
             elif msg_id == int(rp.MessageID.ORIGIN_UPDATE):
-                self.publish_origin(payload)
-            # elif msg_id == int(rp.MessageID.MISSION):
-            #     self.publish_mission(payload)
-            # elif msg_id == int(rp.MessageID.KEY_CONTROL):
-            #     self.get_logger().debug(f"Received KEY_CONTROL command {payload}")
-            #     self.handle_key_control(payload)
+                self.publish_origin(payload, return_address)
+            elif msg_id not in [int(rp.MessageID.PING), int(rp.MessageID.STATUS_RESPONSE), int(rp.MessageID.CONFIRM_DISARM_THRUSTER), int(rp.MessageID.CONFIRM_SYSTEM_CONTROL)]:
+                # Try to publish unrecognized message types as missions
+                self.publish_mission(payload)
         except Exception as e:
             self.get_logger().error(f"Error in data_receive_callback: {e}")
             # self.get_logger().error(traceback.format_exc())
@@ -361,6 +354,7 @@ class RFBridge(Node):
         data = fragment.get("data")
 
         if transfer_id is None or chunk_index is None or total_chunks is None or data is None:
+            self.get_logger().warn(f"[MISSION_FRAGMENT] Invalid fragment structure: missing required fields")
             return
 
         transfer = self.mission_transfers.setdefault(transfer_id, {
@@ -368,16 +362,32 @@ class RFBridge(Node):
             "total": total_chunks,
             "address": return_address,
         })
-        transfer["chunks"][chunk_index] = base64.b64decode(data)
+        
+        decoded_chunk = base64.b64decode(data)
+        transfer["chunks"][chunk_index] = decoded_chunk
+        
+        self.get_logger().info(
+            f"[MISSION_FRAGMENT] Received fragment {chunk_index + 1}/{total_chunks} "
+            f"(transfer_id={transfer_id}, size={len(decoded_chunk)} bytes)"
+        )
 
         if len(transfer["chunks"]) != transfer["total"]:
+            self.get_logger().debug(
+                f"[MISSION_FRAGMENT] Waiting for more fragments... "
+                f"({len(transfer['chunks'])}/{transfer['total']} received)"
+            )
             return
 
+        # All fragments received, reassemble
         payload = b"".join(transfer["chunks"][index] for index in range(transfer["total"]))
         del self.mission_transfers[transfer_id]
+        
+        self.get_logger().info(
+            f"[MISSION_FRAGMENT] All fragments received! Total payload: {len(payload)} bytes. Deserializing mission..."
+        )
         self.publish_mission(payload)
 
-    def publish_origin(self, data):
+    def publish_origin(self, data, return_address):
 
         origin = rp.OriginUpdateMessage.unpack(data)
         origin_msg = GeoPoint()
@@ -390,24 +400,48 @@ class RFBridge(Node):
             f"lon={origin_msg.longitude}, alt={origin_msg.altitude}"
         )
         response = rp.ConfirmOriginUpdateMessage(src_id=self.vehicle_id).pack()
-        self.send_message(response, origin_msg)
+        self.send_message(response, return_address)
 
     def publish_mission(self, data):
         try:
             if isinstance(data, (bytes, bytearray)):
+                self.get_logger().info(f"[MISSION] Attempting to deserialize mission data: {len(data)} bytes")
+                self.get_logger().info(f"[MISSION] Raw data start (hex): {data[:50].hex()}")
                 mission_msg = deserialize_message(data, RouteNetwork)
             else:
+                self.get_logger().info(f"[MISSION] Decoding base64 mission data")
                 mission_data = base64.b64decode(data["data"])
+                self.get_logger().info(f"[MISSION] Decoded mission data: {len(mission_data)} bytes")
                 mission_msg = deserialize_message(mission_data, RouteNetwork)
+            
+            self.get_logger().info(
+                f"[MISSION] RouteNetwork deserialized successfully"
+            )
+            self.get_logger().info(
+                f"[MISSION] Number of waypoints: {len(mission_msg.points)}"
+            )
+            
+            # Log detailed waypoint information
+            if mission_msg.points:
+                for idx, point in enumerate(mission_msg.points):
+                    self.get_logger().info(
+                        f"[MISSION] Waypoint {idx}: lat={point.latitude}, lon={point.longitude}, alt={point.altitude}"
+                    )
+            else:
+                self.get_logger().warn(
+                    f"[MISSION] WARNING: RouteNetwork has NO waypoints! "
+                    f"Message structure: {mission_msg}"
+                )
+            
             self.mission_publisher.publish(mission_msg)
             self.get_logger().info(
-                f"Published RouteNetwork received over radio with "
-                f"{len(mission_msg.points)} waypoints"
+                f"[MISSION] Published RouteNetwork with {len(mission_msg.points)} waypoints"
             )
         except Exception as error:
             self.get_logger().error(
-                f"Failed to deserialize RouteNetwork: {error}"
+                f"[MISSION] Failed to deserialize mission data: {error}"
             )
+            self.get_logger().debug(f"[MISSION] Traceback: {traceback.format_exc()}")
 
     def handle_key_control(self, msg):
         # self.get_logger().info(f"recieved key control through radio {msg}")
