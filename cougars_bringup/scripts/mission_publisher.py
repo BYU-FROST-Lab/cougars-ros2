@@ -83,7 +83,7 @@ class MissionPublisher(Node):
 
         self.declare_parameter('mission_file', '')
         self.declare_parameter('mission_key', '')
-        self.declare_parameter('topic', 'mission')
+        self.declare_parameter('topic', '')
 
         mission_file = self.get_parameter('mission_file').get_parameter_value().string_value
         mission_key = self.get_parameter('mission_key').get_parameter_value().string_value
