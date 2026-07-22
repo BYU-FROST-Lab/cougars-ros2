@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
-"""Loads a mission JSON file and publishes it as a geographic_msgs/RouteNetwork message."""
+"""Loads a mission YAML file and publishes it as a geographic_msgs/RouteNetwork message."""
 
-import json
 import struct
 import sys
+
+import yaml
 
 import rclpy
 from rclpy.node import Node
@@ -25,6 +26,11 @@ def _make_uuid(index: int) -> UUID:
     uuid.uuid[14] = packed[2]
     uuid.uuid[15] = packed[3]
     return uuid
+
+
+# Top-level keys that describe the mission file itself rather than a
+# per-vehicle mission entry (see config/missions/*.yaml).
+_METADATA_KEYS = {'mission_type', 'origin'}
 
 
 def _kv(key: str, value: str) -> KeyValue:
@@ -89,23 +95,24 @@ class MissionPublisher(Node):
 
         try:
             with open(mission_file, 'r') as f:
-                data = json.load(f)
-        except (OSError, json.JSONDecodeError) as e:
+                data = yaml.safe_load(f)
+        except (OSError, yaml.YAMLError) as e:
             self.get_logger().error(f'Failed to load mission file "{mission_file}": {e}')
             sys.exit(1)
 
         if not isinstance(data, dict) or not data:
-            self.get_logger().error('Mission file must be a JSON object with at least one topic key.')
+            self.get_logger().error('Mission file must be a YAML mapping with at least one topic key.')
             sys.exit(1)
 
-        # Determine which key(s) to publish
+        # Determine which key(s) to publish, skipping mission-file metadata
+        # keys (mission_type, origin) that aren't per-vehicle mission entries.
         if mission_key:
-            if mission_key not in data:
+            if mission_key not in data or mission_key in _METADATA_KEYS:
                 self.get_logger().error(f'mission_key "{mission_key}" not found in file.')
                 sys.exit(1)
             entries = {mission_key: data[mission_key]}
         else:
-            entries = data
+            entries = {k: v for k, v in data.items() if k not in _METADATA_KEYS}
 
         latched_qos = QoSProfile(
             depth=1,
@@ -117,18 +124,20 @@ class MissionPublisher(Node):
         self.messages = {}
 
         for key, value in entries.items():
-            publish_topic = topic_override if topic_override else key
-
             if isinstance(value, list):
                 # Legacy format: array of waypoints
                 defaults = {}
                 waypoints = value
+                entry_topic = None
             elif isinstance(value, dict):
                 defaults = value.get('defaults', {})
                 waypoints = value.get('waypoints', [])
+                entry_topic = value.get('topic')
             else:
                 self.get_logger().warning(f'Skipping key "{key}": unexpected format.')
                 continue
+
+            publish_topic = topic_override or entry_topic or key
 
             msg = _build_route_network(defaults, waypoints, publish_topic, self)
             self.pubs[publish_topic] = self.create_publisher(
