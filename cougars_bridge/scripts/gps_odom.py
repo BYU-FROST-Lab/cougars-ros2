@@ -6,6 +6,7 @@ from gps_msgs.msg import GPSFix
 from sensor_msgs.msg import NavSatFix
 from nav_msgs.msg import Odometry
 from geographic_msgs.msg import GeoPoint
+from sbg_driver.msg import SbgGpsPos
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
 import math
 
@@ -19,8 +20,11 @@ class NavSatFixToOdom(Node):
     A simple ROS2 node that subscribes to the extended_fix topic and converts the GPS data to Odometry messages.
     The GPS data is converted from latitude, longitude, and altitude to local Cartesian coordinates.
 
+    Also converts the SBG driver's own GPS position message (sbg/gps_pos) to Odometry in the same way.
+
     Subscribes:
         - extended_fix (gps_msgs/msg/GPSFix)
+        - sbg/gps_pos (sbg_driver/msg/SbgGpsPos)
         - origin (geographic_msgs/msg/GeoPoint)
     Publishes:
         - gps/odom (nav_msgs/msg/Odometry)
@@ -50,6 +54,7 @@ class NavSatFixToOdom(Node):
         # standard rclpy subscriptions (no message_filters)
         self.create_subscription(NavSatFix, 'fix', self.fix_callback, 10)
         self.create_subscription(GPSFix, 'extended_fix', self.extended_fix_callback, 10)
+        self.create_subscription(SbgGpsPos, 'sbg/gps_pos', self.sbg_position_callback, 10)
 
         self.min_sats = 5  # Minimum number of satellites
 
@@ -121,6 +126,51 @@ class NavSatFixToOdom(Node):
             self.get_logger().warn("No cached NavSatFix available, publishing without covariance", throttle_duration_sec=10)
 
         # Publish the odometry message
+        self.publisher.publish(odom)
+
+    def sbg_position_callback(self, msg: SbgGpsPos):
+        '''
+        Callback function for the SbgGpsPos subscription.
+        Converts the SBG driver's GPS position data to an Odometry message and publishes it.
+
+        :param msg: The SbgGpsPos message received from the sbg/gps_pos topic.
+        '''
+        if self.origin is None:
+            self.get_logger().warn("No origin received yet, skipping SBG GPS reading", throttle_duration_sec=10)
+            return
+
+        # status.status == 0 -> SOL_COMPUTED (a valid solution has been computed)
+        if msg.status.status != 0 or msg.num_sv_used < self.min_sats:
+            self.get_logger().warn(f"Bad SBG GPS status, skipping this reading. Sats used: {msg.num_sv_used}", throttle_duration_sec=10)
+            return
+
+        if math.isnan(msg.latitude) or math.isnan(msg.longitude) or math.isnan(msg.altitude):
+            self.get_logger().warn("NaN detected in SBG GPS position, skipping this reading", throttle_duration_sec=10)
+            return
+
+        # Convert latitude/longitude to local Cartesian coordinates
+        x, y = self.CalculateHaversine(
+            self.origin.latitude,
+            self.origin.longitude,
+            msg.latitude,
+            msg.longitude
+        )
+
+        z = msg.altitude - self.origin.altitude
+
+        odom = Odometry()
+        odom.header.stamp = msg.header.stamp
+        odom.header.frame_id = "map"
+        odom.child_frame_id = "gnss_link"
+        odom.pose.pose.position.x = x
+        odom.pose.pose.position.y = y
+        odom.pose.pose.position.z = z
+
+        # position_accuracy is a 1-sigma accuracy in meters; square it for variance
+        odom.pose.covariance[0] = msg.position_accuracy.x ** 2  # xx
+        odom.pose.covariance[7] = msg.position_accuracy.y ** 2  # yy
+        odom.pose.covariance[14] = msg.position_accuracy.z ** 2  # zz
+
         self.publisher.publish(odom)
 
     def CalculateHaversine(self, refLat, refLong, pointLat, pointLong):

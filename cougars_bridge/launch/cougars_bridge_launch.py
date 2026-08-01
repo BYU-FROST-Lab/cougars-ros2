@@ -124,7 +124,8 @@ def generate_launch_description():
         package='cougars_bridge',
         executable='gps_odom.py',
         parameters=[param_file, fleet_param, {'use_sim_time': sim}],
-        namespace=namespace
+        namespace=namespace,
+        remappings=[('fix', 'imu/nav_sat_fix')]
     )
 
     imu_source_vehicle = Node(

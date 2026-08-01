@@ -46,6 +46,11 @@ def generate_launch_description():
         default_value='true',
         description='Launch GPS nodes'
     )
+    use_sbg_launch_arg = DeclareLaunchArgument(
+        'use_sbg',
+        default_value='true',
+        description='Launch SBG sensor and manager nodes'
+    )
     use_acoustics_launch_arg = DeclareLaunchArgument(
         'acoms_on',
         default_value='true',
@@ -91,15 +96,26 @@ def generate_launch_description():
     )
 
     # This is in cougars bridge. This will need to be launched with the new pressure sensor. 
-    # pressure_node = launch_ros.actions.Node(
-    #     package='pressure_sensor',
-    #     executable='pressure_to_depth',
-    #     parameters=[LaunchConfiguration('param_file'), 
-    #                 LaunchConfiguration('fleet_param'), 
-    #                 {'use_sim_time': sim}],
-    #     namespace=LaunchConfiguration('namespace'),
-    #     condition=IfCondition(LaunchConfiguration('use_pressure')),
-    # )
+    pressure_node = launch_ros.actions.Node(
+        package='pressure_sensor',
+        executable='pressure_pub',
+        parameters=[LaunchConfiguration('param_file'), 
+                    LaunchConfiguration('fleet_param'), 
+                    {'use_sim_time': sim}],
+        namespace=LaunchConfiguration('namespace'),
+        condition=IfCondition(LaunchConfiguration('use_pressure')),
+    )
+
+    sbg_node = launch_ros.actions.Node(
+        package='sbg_driver',
+        executable='sbg_device',
+        parameters=[LaunchConfiguration('param_file'), 
+                    LaunchConfiguration('fleet_param'), 
+                    {'use_sim_time': sim}],
+        namespace=LaunchConfiguration('namespace'),
+        condition=IfCondition(LaunchConfiguration('use_sbg')),
+        remappings=[('imu/data', 'sbg/imu/data')]
+    )
 
     gps_node_container = launch_ros.actions.ComposableNodeContainer(
         package='rclcpp_components',
@@ -136,6 +152,7 @@ def generate_launch_description():
         arguments=['--ros-args', '--log-level', 'WARN'],
         condition=IfCondition(LaunchConfiguration('use_gps')),
     )
+    
 
     launch_actions = [
         # launch arguments
@@ -145,6 +162,7 @@ def generate_launch_description():
         sim_launch_arg,
         use_dvl_launch_arg,
         use_gps_launch_arg,
+        use_sbg_launch_arg,
         use_acoustics_launch_arg,
         use_pressure_launch_arg,
 
@@ -152,7 +170,9 @@ def generate_launch_description():
         dvl_node,
         dvl_manager,
         seatrac_node,
+        pressure_node,
         gps_node_container,
+        sbg_node,
         # pressure_to_depth_node
     ]
 
