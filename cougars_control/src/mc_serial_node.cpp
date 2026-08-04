@@ -6,6 +6,7 @@
 #include <libserialport.h>
 #include <string>
 #include <sstream>
+#include <iomanip>
 // Added these libraries for the real path resolution
 #include <stdlib.h>
 #include <limits.h>
@@ -27,9 +28,7 @@ public:
 
         this->declare_parameter("demo_mode", false);
 
-        sp_set_baudrate(serial_port_, 9600);
         // Open the serial port
-
 
         //Added this code so that we can use udev symlink path
         //This function finds the real path within the udev rule so that it can use the real path with the libserialport library
@@ -37,10 +36,12 @@ public:
         char resolved_path[PATH_MAX];
         if (realpath("/dev/frost/teensy", resolved_path) != NULL) {
             std::cout << "Real path: " << resolved_path << std::endl;
+        } else if (realpath("/dev/ttyAMA0", resolved_path) != NULL) {
+            std::cout << "Real path: " << resolved_path << std::endl;
         } else {
             std::cerr << "Error resolving path" << std::endl;
         }
-        
+
         if (sp_get_port_by_name(resolved_path, &serial_port_) != SP_OK) {
             RCLCPP_ERROR(this->get_logger(), "Unable to find port");
             rclcpp::shutdown();
@@ -52,6 +53,11 @@ public:
             rclcpp::shutdown();
         }
 
+        // Must match SERIAL_BAUD_RATE in mcu_ws/stm/src/main.cpp, and must be set
+        // after sp_open() since the port isn't valid to configure before that.
+        if (sp_set_baudrate(serial_port_, 115200) != SP_OK) {
+            RCLCPP_ERROR(this->get_logger(), "Unable to set baud rate");
+        }
 
         RCLCPP_INFO(this->get_logger(), "Serial port initialized");
 
@@ -66,13 +72,29 @@ public:
 
 private:
     void controlCommandCallback(const cougars_interfaces::msg::ActuatorCommand::SharedPtr msg) {
+        RCLCPP_DEBUG(this->get_logger(), "Received actuator_cmd: fin=[%.2f, %.2f, %.2f], thruster=%lld",
+                    msg->fin[0], msg->fin[1], msg->fin[2], static_cast<long long>(msg->thruster));
+
         std::stringstream ss;
+        // Fixed notation, not the ostream default: the default switches to scientific
+        // ("1e-05") for small magnitudes, which the firmware's minimal decimal parser
+        // does not understand. Two decimals is well past the whole-degree resolution
+        // the servos actually apply.
+        ss << std::fixed << std::setprecision(2);
         // (Currently have 3 fins)
         ss << "$CONTR," << msg->fin[0] << "," << msg->fin[1] << "," << msg->fin[2] << "," << msg->thruster << "\n";
         std::string command = ss.str();
-        sp_nonblocking_write(serial_port_, command.c_str(), command.size());
-        // RCLCPP_INFO(this->get_logger(), "Sent command: %s", command.c_str());
-        std::cout << "Sent command: " << command.c_str() << std::endl;
+
+        int bytes_written = sp_nonblocking_write(serial_port_, command.c_str(), command.size());
+        if (bytes_written < 0) {
+            RCLCPP_ERROR(this->get_logger(), "Failed to write to serial port (error %d) for command: %s",
+                         bytes_written, command.c_str());
+        } else if (static_cast<size_t>(bytes_written) != command.size()) {
+            RCLCPP_WARN(this->get_logger(), "Partial serial write: %d of %zu bytes for command: %s",
+                        bytes_written, command.size(), command.c_str());
+        } else {
+            RCLCPP_DEBUG(this->get_logger(), "Sent command: %s", command.c_str());
+        }
     }
 
     void readSerialData() {
