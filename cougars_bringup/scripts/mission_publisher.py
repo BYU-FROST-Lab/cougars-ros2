@@ -1,7 +1,17 @@
 #!/usr/bin/env python3
 
-"""Loads a mission YAML file and publishes it as a geographic_msgs/RouteNetwork message."""
+"""Loads a mission file and publishes it as a geographic_msgs/RouteNetwork message.
 
+Two input formats:
+  *.json  keyed by namespace, waypoints already in lat/lon
+  *.csv   columns agent,ctrl_index,x,y -- ENU metres from the fleet origin, grouped
+          by agent number and mapped to a namespace via the agent_namespaces param
+"""
+
+import collections
+import csv
+import json
+import math
 import struct
 import sys
 
@@ -14,6 +24,62 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from geographic_msgs.msg import GeoPoint, RouteNetwork, WayPoint, KeyValue
 from std_msgs.msg import Header
 from unique_identifier_msgs.msg import UUID
+
+
+# Spherical earth, same radius gps_odom.py and waypoint_controller.cpp use. Do not
+# swap in an ellipsoidal library here -- _enu_to_lla must be the exact inverse of
+# haversine_to_enu in waypoint_controller.cpp or waypoints land ~0.3% off.
+EARTH_RADIUS_METERS = 6371000
+
+
+def _enu_to_lla(ref_lat: float, ref_lon: float, x: float, y: float) -> tuple:
+    """ENU metres (x=East, y=North) from an origin -> WGS84 lat/lon in degrees."""
+    ref_lat_rad = math.radians(ref_lat)
+    ref_lon_rad = math.radians(ref_lon)
+
+    d = math.sqrt(x ** 2 + y ** 2)
+    theta = math.atan2(x, y)
+
+    lat_rad = math.asin(math.sin(ref_lat_rad) * math.cos(d / EARTH_RADIUS_METERS) +
+                        math.cos(ref_lat_rad) * math.sin(d / EARTH_RADIUS_METERS) * math.cos(theta))
+    lon_rad = ref_lon_rad + math.atan2(
+        math.sin(theta) * math.sin(d / EARTH_RADIUS_METERS) * math.cos(ref_lat_rad),
+        math.cos(d / EARTH_RADIUS_METERS) - math.sin(ref_lat_rad) * math.sin(lat_rad))
+
+    return math.degrees(lat_rad), math.degrees(lon_rad)
+
+
+def _load_csv(path: str, agent_map: dict, ref_lat: float, ref_lon: float, logger=None) -> dict:
+    """Read agent,ctrl_index,x,y and return {namespace: {defaults, waypoints}}."""
+    grouped = collections.defaultdict(list)
+    with open(path, 'r', newline='') as f:
+        for row in csv.DictReader(f):
+            agent = row['agent'].strip()
+            if agent not in agent_map:
+                if logger:
+                    logger.warning(f'CSV agent "{agent}" not in agent_namespaces; skipping.')
+                continue
+            grouped[agent_map[agent]].append(
+                (int(row['ctrl_index']), float(row['x']), float(row['y']))
+            )
+
+    entries = {}
+    for namespace, rows in grouped.items():
+        rows.sort(key=lambda r: r[0])
+        waypoints = []
+        for _, x, y in rows:
+            lat, lon = _enu_to_lla(ref_lat, ref_lon, x, y)
+            waypoints.append({
+                'lat': lat,
+                'lon': lon,
+                'z': 0.0,
+                'depth_ref': 'surface',
+                'park': False,
+            })
+        # ponytail: no per-mission defaults in the CSV; _build_route_network's own
+        # fallbacks apply. Add a defaults block here if the planner ever emits speed.
+        entries[namespace] = {'waypoints': waypoints}
+    return entries
 
 
 def _make_uuid(index: int) -> UUID:
@@ -84,6 +150,7 @@ class MissionPublisher(Node):
         self.declare_parameter('mission_file', '')
         self.declare_parameter('mission_key', '')
         self.declare_parameter('topic', 'mission')
+        self.declare_parameter('agent_namespaces', ['1:coug2', '2:coug3'])
 
         mission_file = self.get_parameter('mission_file').get_parameter_value().string_value
         mission_key = self.get_parameter('mission_key').get_parameter_value().string_value
@@ -93,12 +160,25 @@ class MissionPublisher(Node):
             self.get_logger().error('Parameter "mission_file" is required.')
             sys.exit(1)
 
-        try:
-            with open(mission_file, 'r') as f:
-                data = yaml.safe_load(f)
-        except (OSError, yaml.YAMLError) as e:
-            self.get_logger().error(f'Failed to load mission file "{mission_file}": {e}')
-            sys.exit(1)
+        if mission_file.lower().endswith('.csv'):
+            agent_map = dict(
+                pair.split(':', 1) for pair in
+                self.get_parameter('agent_namespaces').get_parameter_value().string_array_value
+            )
+            origin = self._wait_for_origin()
+            try:
+                data = _load_csv(mission_file, agent_map,
+                                 origin.latitude, origin.longitude, self.get_logger())
+            except (OSError, KeyError, ValueError) as e:
+                self.get_logger().error(f'Failed to load mission file "{mission_file}": {e}')
+                sys.exit(1)
+        else:
+            try:
+                with open(mission_file, 'r') as f:
+                    data = json.load(f)
+            except (OSError, json.JSONDecodeError) as e:
+                self.get_logger().error(f'Failed to load mission file "{mission_file}": {e}')
+                sys.exit(1)
 
         if not isinstance(data, dict) or not data:
             self.get_logger().error('Mission file must be a YAML mapping with at least one topic key.')
@@ -155,6 +235,30 @@ class MissionPublisher(Node):
 
         # Publish once after a short delay so the publisher is registered
         self._timer = self.create_timer(0.1, self._publish_once)
+
+    def _wait_for_origin(self) -> GeoPoint:
+        """Block until origin_publisher's /origin arrives. It is transient-local, so a
+        late subscriber still gets the latched value and this returns immediately."""
+        self._origin = None
+        sub = self.create_subscription(
+            GeoPoint, '/origin', lambda msg: setattr(self, '_origin', msg),
+            QoSProfile(
+                depth=1,
+                reliability=ReliabilityPolicy.RELIABLE,
+                durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            ),
+        )
+        self.get_logger().info('Waiting for /origin before converting CSV waypoints...')
+        while self._origin is None:
+            rclpy.spin_once(self, timeout_sec=1.0)
+            if self._origin is None:
+                self.get_logger().warning(
+                    'Still waiting for /origin (is origin_publisher running with '
+                    'use_param_origin: true?)')
+        self.destroy_subscription(sub)
+        self.get_logger().info(
+            f'Received origin: lat={self._origin.latitude}, lon={self._origin.longitude}')
+        return self._origin
 
     def _publish_once(self):
         self._timer.cancel()

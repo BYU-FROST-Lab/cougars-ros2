@@ -37,17 +37,23 @@ def generate_launch_description():
         default_value='False',
         description='Use simulation clock if true'
     )
+    mission_file_launch_arg = DeclareLaunchArgument(
+        'mission_file',
+        default_value=f'{Path.home()}/config/missions/agent_waypoints.csv',
+        description='Waypoint mission file (.csv of ENU waypoints, or .json of lat/lon)'
+    )
 
     ### Launch Nodes
     sim = LaunchConfiguration('sim')
 
-    # TODO Add this back when it has a subscriber for loading a specific mission
     mission_publisher = launch_ros.actions.Node(
         package='cougars_bringup',
         executable='mission_publisher.py',
         name='mission_publisher',
         parameters=[
-            {'namespace': LaunchConfiguration('namespace')},
+            # mission_key selects this vehicle's section of the mission file
+            {'mission_key': LaunchConfiguration('namespace')},
+            {'mission_file': LaunchConfiguration('mission_file')},
             LaunchConfiguration('param_file'),
             LaunchConfiguration('fleet_param'),
             {'use_sim_time': sim}
@@ -94,11 +100,12 @@ def generate_launch_description():
         param_file_launch_arg,
         fleet_param_launch_arg,
         sim_launch_arg,
+        mission_file_launch_arg,
         OpaqueFunction(function=debug_launch_args),
 
         # launch nodes
-        # mission_publisher,
         origin_publisher,
+        mission_publisher,
         bag_recorder,
         cpu_monitor,
         ram_monitor
