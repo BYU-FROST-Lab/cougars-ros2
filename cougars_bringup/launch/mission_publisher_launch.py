@@ -24,7 +24,7 @@ def generate_launch_description():
     )
     topic_launch_arg = DeclareLaunchArgument(
         'topic',
-        default_value='',
+        default_value='mission',
         description='If set, forces every published entry onto this topic instead of each entry\'s own "topic" field.'
     )
     sim_launch_arg = DeclareLaunchArgument(
