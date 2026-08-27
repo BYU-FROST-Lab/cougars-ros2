@@ -24,6 +24,7 @@ import math
 import traceback
 import base64
 import os
+import subprocess
 import time
 import shutil
 
@@ -154,6 +155,16 @@ class RFBridge(Node):
         self.VEHICLE_PARAMS_FILE = f"coug{self.vehicle_id}params.yaml"
         self.FLEET_PARAMS_FILE = "fleet_params.yaml"
         self.MISSION_FILE = "mission.yaml"
+
+        self.HARDWARE_CONTROL_SCRIPTS = {
+            int(rp.HardwareDevice.RELAY): os.path.expanduser("~/scripts/set_relay.sh"),
+            int(rp.HardwareDevice.STROBE): os.path.expanduser("~/scripts/set_strobe.sh"),
+        }
+        self.HARDWARE_CONTROL_MODES = {
+            int(rp.HardwareMode.AUTO): "auto",
+            int(rp.HardwareMode.ON): "on",
+            int(rp.HardwareMode.OFF): "off",
+        }
 
     def battery_callback(self, msg):
         self.latest_battery = msg
@@ -314,6 +325,9 @@ class RFBridge(Node):
                 self.init_vehicle(payload, return_address)
             elif msg_id == int(rp.MessageID.ORIGIN_UPDATE):
                 self.publish_origin(payload, return_address)
+            elif msg_id == int(rp.MessageID.HARDWARE_CONTROL):
+                self.get_logger().info("Received HARDWARE_CONTROL command")
+                self.set_hardware_control(payload, return_address)
             elif msg_id not in [int(rp.MessageID.PING), int(rp.MessageID.STATUS_RESPONSE), int(rp.MessageID.CONFIRM_DISARM_THRUSTER), int(rp.MessageID.CONFIRM_SYSTEM_CONTROL)]:
                 # Try to publish unrecognized message types as missions
                 self.publish_mission(payload)
@@ -464,6 +478,43 @@ class RFBridge(Node):
         self.send_message(response, return_address)
 
     
+    def set_hardware_control(self, data, return_address):
+        control_msg = rp.HardwareControlMessage.unpack(data)
+        script_path = self.HARDWARE_CONTROL_SCRIPTS.get(control_msg.device)
+        mode_name = self.HARDWARE_CONTROL_MODES.get(control_msg.mode)
+        device_name = "relay" if control_msg.device == int(rp.HardwareDevice.RELAY) else "strobe"
+
+        success = False
+        if script_path is None or mode_name is None:
+            self.get_logger().error(
+                f"Received HARDWARE_CONTROL with unknown device={control_msg.device} mode={control_msg.mode}"
+            )
+        else:
+            try:
+                result = subprocess.run(
+                    ["bash", script_path, mode_name],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                success = result.returncode == 0
+                if success:
+                    self.get_logger().info(f"Set {device_name} mode to '{mode_name}'")
+                else:
+                    self.get_logger().error(
+                        f"Failed to set {device_name} mode to '{mode_name}': {result.stderr.strip()}"
+                    )
+            except Exception as e:
+                self.get_logger().error(f"Error running {script_path}: {e}")
+
+        response = rp.ConfirmHardwareControlMessage(
+            src_id=self.vehicle_id,
+            device=control_msg.device,
+            mode=control_msg.mode,
+            success=success,
+        ).pack()
+        self.send_message(response, return_address)
+
     def kill_thruster(self, return_address):
         self.get_logger().info("Received kill command from base station")
         request = SetBool.Request()
