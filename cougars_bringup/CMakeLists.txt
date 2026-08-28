@@ -14,13 +14,15 @@ find_package(dvl_msgs REQUIRED)
 find_package(gps_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(geographic_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(cougars_interfaces REQUIRED)
 find_package(seatrac_interfaces REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
+find_package(sbg_driver REQUIRED)
 
 add_executable(bag_recorder src/bag_recorder.cpp)
-ament_target_dependencies(bag_recorder rclcpp std_msgs cougars_interfaces sensor_msgs dvl_msgs seatrac_interfaces gps_msgs nav_msgs rosbag2_cpp diagnostic_msgs)
+ament_target_dependencies(bag_recorder rclcpp std_msgs cougars_interfaces sensor_msgs dvl_msgs seatrac_interfaces gps_msgs nav_msgs rosbag2_cpp diagnostic_msgs sbg_driver geographic_msgs)
 
 target_link_libraries(bag_recorder)
 

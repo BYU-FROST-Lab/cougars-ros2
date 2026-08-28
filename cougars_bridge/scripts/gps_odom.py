@@ -3,7 +3,7 @@
 import rclpy
 from rclpy.node import Node
 from gps_msgs.msg import GPSFix
-from sensor_msgs.msg import NavSatFix
+from sensor_msgs.msg import NavSatFix, Imu
 from nav_msgs.msg import Odometry
 from geographic_msgs.msg import GeoPoint
 from sbg_driver.msg import SbgGpsPos
@@ -22,9 +22,13 @@ class NavSatFixToOdom(Node):
 
     Also converts the SBG driver's own GPS position message (sbg/gps_pos) to Odometry in the same way.
 
+    The orientation is taken from the latest /imu/data message and copied into the
+    published Odometry pose.
+
     Subscribes:
         - extended_fix (gps_msgs/msg/GPSFix)
         - sbg/gps_pos (sbg_driver/msg/SbgGpsPos)
+        - imu/data (sensor_msgs/msg/Imu)
         - origin (geographic_msgs/msg/GeoPoint)
     Publishes:
         - gps/odom (nav_msgs/msg/Odometry)
@@ -51,10 +55,17 @@ class NavSatFixToOdom(Node):
         # maximum allowed age of cached covariance (seconds)
         self.fix_cov_max_age = 3.0
 
+        # Cache the latest IMU orientation
+        self.last_imu_msg = None
+        self.last_imu_time_ns = None
+        # maximum allowed age of cached orientation (seconds)
+        self.imu_max_age = 3.0
+
         # standard rclpy subscriptions (no message_filters)
         self.create_subscription(NavSatFix, 'fix', self.fix_callback, 10)
         self.create_subscription(GPSFix, 'extended_fix', self.extended_fix_callback, 10)
         self.create_subscription(SbgGpsPos, 'sbg/gps_pos', self.sbg_position_callback, 10)
+        self.create_subscription(Imu, 'imu/data', self.imu_callback, 10)
 
         self.min_sats = 5  # Minimum number of satellites
 
@@ -71,6 +82,28 @@ class NavSatFixToOdom(Node):
         # cache the latest NavSatFix (for covariance)
         self.last_fix_msg = msg
         self.last_fix_time_ns = self.get_clock().now().nanoseconds
+
+    def imu_callback(self, msg: Imu):
+        # cache the latest IMU message (for orientation)
+        self.last_imu_msg = msg
+        self.last_imu_time_ns = self.get_clock().now().nanoseconds
+
+    def apply_orientation(self, odom: Odometry):
+        '''
+        Copies the most recent IMU orientation into the given Odometry message,
+        if a recent IMU reading is available.
+        '''
+        if self.last_imu_msg is not None and self.last_imu_time_ns is not None:
+            age_s = (self.get_clock().now().nanoseconds - self.last_imu_time_ns) / 1e9
+            if age_s <= self.imu_max_age:
+                odom.pose.pose.orientation = self.last_imu_msg.orientation
+                for i in range(3):
+                    for j in range(3):
+                        odom.pose.covariance[21 + i * 6 + j] = self.last_imu_msg.orientation_covariance[i * 3 + j]
+                return
+            self.get_logger().warn(f"Cached IMU too old ({age_s:.1f}s), publishing without orientation", throttle_duration_sec=10)
+        else:
+            self.get_logger().warn("No cached IMU available, publishing without orientation", throttle_duration_sec=10)
 
     def extended_fix_callback(self, extended_msg: GPSFix):
         '''
@@ -125,6 +158,9 @@ class NavSatFixToOdom(Node):
         else:
             self.get_logger().warn("No cached NavSatFix available, publishing without covariance", throttle_duration_sec=10)
 
+        # Populate orientation from the most recent IMU message
+        self.apply_orientation(odom)
+
         # Publish the odometry message
         self.publisher.publish(odom)
 
@@ -170,6 +206,9 @@ class NavSatFixToOdom(Node):
         odom.pose.covariance[0] = msg.position_accuracy.x ** 2  # xx
         odom.pose.covariance[7] = msg.position_accuracy.y ** 2  # yy
         odom.pose.covariance[14] = msg.position_accuracy.z ** 2  # zz
+
+        # Populate orientation from the most recent IMU message
+        self.apply_orientation(odom)
 
         self.publisher.publish(odom)
 
