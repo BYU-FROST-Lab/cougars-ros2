@@ -10,7 +10,7 @@ from sensor_msgs.msg import BatteryState, FluidPressure
 from dvl_msgs.msg import DVL
 from std_srvs.srv import SetBool
 from std_msgs.msg import Bool
-from cougars_interfaces.msg import MissionFeedback, SystemControl, UCommand, WaypointFeedback
+from cougars_interfaces.msg import ActuatorCommand, MissionFeedback, SystemControl, WaypointFeedback
 from geographic_msgs.msg import GeoPoint, RouteNetwork
 
 from digi.xbee.devices import XBeeDevice, RemoteXBeeDevice
@@ -134,7 +134,9 @@ class RFBridge(Node):
             'waypoint_feedback',
             self.waypoint_feedback_callback,
             10)
-        self.ucommand_pub = self.create_publisher(UCommand, 'controls/command', 10)
+        # coug_kinematics.cpp is the node that actually drives the fins/thruster; it
+        # listens on control/u_cmd for ActuatorCommand messages.
+        self.actuator_command_pub = self.create_publisher(ActuatorCommand, 'control/u_cmd', 10)
 
         # Direct ROS topic for hardware control delivered over WiFi (bridged from
         # coug{id}/hardware_control by base_station_wifi.py's VehicleWifiConnection).
@@ -449,10 +451,10 @@ class RFBridge(Node):
             enable.data = self.thruster_enable
             self.e_kill_client.call_async(enable)
 
-        ucommand_msg = UCommand()
-        ucommand_msg.fin = [float(f) for f in control_msg.fin]
-        ucommand_msg.thruster = control_msg.thruster if control_msg.thruster_enabled else 0
-        self.ucommand_pub.publish(ucommand_msg)
+        actuator_msg = ActuatorCommand()
+        actuator_msg.fin = [float(f) for f in control_msg.fin]
+        actuator_msg.thruster = control_msg.thruster if control_msg.thruster_enabled else 0
+        self.actuator_command_pub.publish(actuator_msg)
 
 
     def init_vehicle(self, msg, return_address):
