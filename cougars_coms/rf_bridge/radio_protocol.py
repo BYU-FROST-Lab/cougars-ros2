@@ -384,13 +384,15 @@ class KeyControlMessage(RadioMessage):
 
     _FIN_SCALE = 100.0  # 0.01 degree resolution
 
-    _STRUCT = struct.Struct("<BB4h")
+    # thruster is signed: reverse thrust is a negative value (down to -100)
+    _STRUCT = struct.Struct("<Bb4h")
 
     def pack(self) -> bytes:
         fin_values = (list(self.fin) + [0.0, 0.0, 0.0, 0.0])[:4]
+        thruster = max(-128, min(127, int(self.thruster)))
         return self.pack_header() + self._STRUCT.pack(
             int(self.thruster_enabled),
-            int(self.thruster),
+            thruster,
             *(pack_fixed16(f, self._FIN_SCALE) for f in fin_values),
         )
 
