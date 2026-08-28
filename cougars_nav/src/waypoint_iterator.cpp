@@ -102,7 +102,7 @@ public:
     void waypointFeedbackCallback(const cougars_interfaces::msg::WaypointFeedback::SharedPtr msg) {
         // Handle waypoint feedback message
         if (this->mission_state != cougars_interfaces::msg::MissionFeedback::STATE_RUNNING) {
-            RCLCPP_WARN(this->get_logger(), "Received waypoint feedback while mission is not active. Ignoring.");
+            // RCLCPP_DEBUG(this->get_logger(), "Received waypoint feedback while mission is not active. Ignoring.");
             return;
         }
         this->current_wp_feedback = *msg;
