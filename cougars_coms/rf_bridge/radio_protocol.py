@@ -45,6 +45,7 @@ class MessageID(IntEnum):
     MISSION_RECEIVED = 0x0C
     HARDWARE_CONTROL = 0x0D
     CONFIRM_HARDWARE_CONTROL = 0x0E
+    KEY_CONTROL = 0x0F
 
 class HardwareDevice(IntEnum):
     RELAY = 0
@@ -372,3 +373,31 @@ class ConfirmHardwareControlMessage(RadioMessage):
         offset = cls._HEADER_STRUCT.size
         device, mode, success = cls._STRUCT.unpack(data[offset : offset + cls._STRUCT.size])
         return cls(src_id=src_id, device=device, mode=mode, success=bool(success))
+
+@dataclass
+class KeyControlMessage(RadioMessage):
+    """Manual teleop command (fins + thruster), mirroring base_station_interfaces/UCommandBase. Fire-and-forget, no confirmation, matching the WiFi teleop path."""
+    MESSAGE_ID: ClassVar[MessageID] = MessageID.KEY_CONTROL
+    thruster_enabled: bool
+    thruster: int
+    fin: list
+
+    _FIN_SCALE = 100.0  # 0.01 degree resolution
+
+    _STRUCT = struct.Struct("<BB4h")
+
+    def pack(self) -> bytes:
+        fin_values = (list(self.fin) + [0.0, 0.0, 0.0, 0.0])[:4]
+        return self.pack_header() + self._STRUCT.pack(
+            int(self.thruster_enabled),
+            int(self.thruster),
+            *(pack_fixed16(f, self._FIN_SCALE) for f in fin_values),
+        )
+
+    @classmethod
+    def unpack(cls, data: bytes) -> "KeyControlMessage":
+        _, src_id = cls.unpack_header(data)
+        offset = cls._HEADER_STRUCT.size
+        thruster_enabled, thruster, f0, f1, f2, f3 = cls._STRUCT.unpack(data[offset : offset + cls._STRUCT.size])
+        fin = [unpack_fixed16(f, cls._FIN_SCALE) for f in (f0, f1, f2, f3)]
+        return cls(src_id=src_id, thruster_enabled=bool(thruster_enabled), thruster=thruster, fin=fin)

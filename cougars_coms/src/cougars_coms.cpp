@@ -18,6 +18,7 @@
 #include "cougars_interfaces/msg/localization_data_short.hpp"
 #include "cougars_interfaces/msg/system_control.hpp"
 #include "cougars_interfaces/msg/way_point.hpp"
+#include "geographic_msgs/msg/geo_point.hpp"
 
 #include <seatrac_driver/SeatracEnums.h>
 
@@ -30,6 +31,8 @@
 #include <iostream>
 #include <chrono>
 #include <memory>
+#include <cstdlib>
+#include <string>
 
 
 using namespace std::literals::chrono_literals;
@@ -137,6 +140,12 @@ public:
             "system/status", 10
         );
 
+        // publisher for the shared origin, matching the WiFi/radio origin delivery paths.
+        // TRANSIENT_LOCAL so a late-joining subscriber still gets the last origin received.
+        this->origin_publisher_ = this->create_publisher<geographic_msgs::msg::GeoPoint>(
+            "/origin", rclcpp::QoS(1).reliable().transient_local()
+        );
+
         // publisher for full localization data
         this->localization_data_publisher_ = this->create_publisher<cougars_interfaces::msg::LocalizationData>("localization_data", 10);
 
@@ -178,6 +187,12 @@ public:
             } break;
             case LOCALIZATION_INFO: {
                record_localization_info(msg);
+            } break;
+            case HARDWARE_CONTROL: {
+                handle_hardware_control(&msg);
+            } break;
+            case ORIGIN_UPDATE: {
+                handle_origin_update(&msg);
             } break;
 
         }
@@ -282,6 +297,55 @@ public:
                 }
             }
         );
+    }
+
+    // runs set_relay.sh/set_strobe.sh (the same scripts used from the command line) and
+    // reports success back to the base station over the modem
+    void handle_hardware_control(seatrac_interfaces::msg::ModemRec* msg) {
+        const HardwareControl* control_msg = reinterpret_cast<const HardwareControl*>(msg->packet_data.data());
+
+        const char* script_name = (control_msg->device == 0) ? "set_relay.sh" : "set_strobe.sh";
+        const char* mode_name;
+        switch (control_msg->mode) {
+            case 1: mode_name = "on"; break;
+            case 2: mode_name = "off"; break;
+            default: mode_name = "auto"; break;
+        }
+
+        const char* home = std::getenv("HOME");
+        std::string command = std::string(home ? home : "") + "/scripts/" + script_name + " " + mode_name;
+        bool success = (std::system(command.c_str()) == 0);
+
+        if (success) {
+            RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Set hardware (device=%d) mode to '%s'", control_msg->device, mode_name);
+        } else {
+            RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Failed to set hardware (device=%d) mode to '%s'", control_msg->device, mode_name);
+        }
+
+        ConfirmHardwareControl confirm;
+        confirm.device = control_msg->device;
+        confirm.mode = control_msg->mode;
+        confirm.success = success;
+        send_acoustic_message(base_station_beacon_id_, sizeof(confirm), (uint8_t*)&confirm);
+    }
+
+    // publishes an origin received over the modem, matching the WiFi/radio origin paths
+    void handle_origin_update(seatrac_interfaces::msg::ModemRec* msg) {
+        const OriginUpdate* origin_msg = reinterpret_cast<const OriginUpdate*>(msg->packet_data.data());
+
+        geographic_msgs::msg::GeoPoint origin;
+        origin.latitude = origin_msg->latitude;
+        origin.longitude = origin_msg->longitude;
+        origin.altitude = origin_msg->altitude;
+        this->origin_publisher_->publish(origin);
+
+        RCLCPP_INFO(rclcpp::get_logger("rclcpp"),
+            "Published origin received over modem: lat=%.6f, lon=%.6f, alt=%.2f",
+            origin.latitude, origin.longitude, origin.altitude);
+
+        ConfirmOriginUpdate confirm;
+        confirm.success = true;
+        send_acoustic_message(base_station_beacon_id_, sizeof(confirm), (uint8_t*)&confirm);
     }
 
     // sends a status message to the base station
@@ -424,6 +488,7 @@ private:
 
     rclcpp::Publisher<cougars_interfaces::msg::LocalizationData>::SharedPtr localization_data_publisher_;
     rclcpp::Publisher<cougars_interfaces::msg::LocalizationDataShort>::SharedPtr localization_data_short_publisher_;
+    rclcpp::Publisher<geographic_msgs::msg::GeoPoint>::SharedPtr origin_publisher_;
     rclcpp::Publisher<seatrac_interfaces::msg::ModemSend>::SharedPtr modem_publisher_;
     rclcpp::Publisher<cougars_interfaces::msg::SystemControl>::SharedPtr init_publisher_;
 

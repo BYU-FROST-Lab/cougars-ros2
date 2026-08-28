@@ -136,6 +136,13 @@ class RFBridge(Node):
             10)
         self.ucommand_pub = self.create_publisher(UCommand, 'controls/command', 10)
 
+        # Direct ROS topic for hardware control delivered over WiFi (bridged from
+        # coug{id}/hardware_control by base_station_wifi.py's VehicleWifiConnection).
+        self.hardware_control_sub = self.create_subscription(
+            String,
+            'hardware_control_cmd',
+            self.hardware_control_topic_callback,
+            10)
 
         # Register XBee data receive callback
         self.device.add_data_received_callback(self.data_receive_callback)
@@ -328,6 +335,8 @@ class RFBridge(Node):
             elif msg_id == int(rp.MessageID.HARDWARE_CONTROL):
                 self.get_logger().info("Received HARDWARE_CONTROL command")
                 self.set_hardware_control(payload, return_address)
+            elif msg_id == int(rp.MessageID.KEY_CONTROL):
+                self.handle_key_control(payload)
             elif msg_id not in [int(rp.MessageID.PING), int(rp.MessageID.STATUS_RESPONSE), int(rp.MessageID.CONFIRM_DISARM_THRUSTER), int(rp.MessageID.CONFIRM_SYSTEM_CONTROL)]:
                 # Try to publish unrecognized message types as missions
                 self.publish_mission(payload)
@@ -431,32 +440,21 @@ class RFBridge(Node):
             )
             self.get_logger().debug(f"[MISSION] Traceback: {traceback.format_exc()}")
 
-    def handle_key_control(self, msg):
-        # self.get_logger().info(f"recieved key control through radio {msg}")
-        ucommand_msg = UCommand()
-        
-        # Extract command data from nested structure
-        command_data = msg.get("command", {})
+    def handle_key_control(self, data):
+        control_msg = rp.KeyControlMessage.unpack(data)
 
-        if self.thruster_enable != command_data.get('enable', False):
-            self.thruster_enable = command_data.get('enable', False)
+        if self.thruster_enable != control_msg.thruster_enabled:
+            self.thruster_enable = control_msg.thruster_enabled
             enable = SetBool.Request()
             enable.data = self.thruster_enable
             self.e_kill_client.call_async(enable)
 
-        
-        # fin field expects an array of 4 floats
-        fin_value = command_data.get("fin", [0.0, 0.0, 0.0, 0.0])
-        fin_value[0] += 5
-        # self.get_logger().info(f"fin value: {fin_value}")
-        ucommand_msg.fin = [float(f) for f in fin_value]
-        
-        # Get throttle value from command data
-        ucommand_msg.thruster = command_data.get("throttle", 0)
-        # self.get_logger().info(f"thruster value: {ucommand_msg.thruster}")
+        ucommand_msg = UCommand()
+        ucommand_msg.fin = [float(f) for f in control_msg.fin]
+        ucommand_msg.thruster = control_msg.thruster if control_msg.thruster_enabled else 0
         self.ucommand_pub.publish(ucommand_msg)
 
-    
+
     def init_vehicle(self, msg, return_address):
         self.get_logger().info("Initializing vehicle with received parameters")
 
@@ -478,34 +476,38 @@ class RFBridge(Node):
         self.send_message(response, return_address)
 
     
+    def _apply_hardware_control(self, device, mode):
+        """Runs set_relay.sh/set_strobe.sh for the given HardwareDevice/HardwareMode ints. Returns success bool."""
+        script_path = self.HARDWARE_CONTROL_SCRIPTS.get(device)
+        mode_name = self.HARDWARE_CONTROL_MODES.get(mode)
+        device_name = "relay" if device == int(rp.HardwareDevice.RELAY) else "strobe"
+
+        if script_path is None or mode_name is None:
+            self.get_logger().error(f"Unknown hardware control device={device} mode={mode}")
+            return False
+
+        try:
+            result = subprocess.run(
+                ["bash", script_path, mode_name],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            success = result.returncode == 0
+            if success:
+                self.get_logger().info(f"Set {device_name} mode to '{mode_name}'")
+            else:
+                self.get_logger().error(
+                    f"Failed to set {device_name} mode to '{mode_name}': {result.stderr.strip()}"
+                )
+            return success
+        except Exception as e:
+            self.get_logger().error(f"Error running {script_path}: {e}")
+            return False
+
     def set_hardware_control(self, data, return_address):
         control_msg = rp.HardwareControlMessage.unpack(data)
-        script_path = self.HARDWARE_CONTROL_SCRIPTS.get(control_msg.device)
-        mode_name = self.HARDWARE_CONTROL_MODES.get(control_msg.mode)
-        device_name = "relay" if control_msg.device == int(rp.HardwareDevice.RELAY) else "strobe"
-
-        success = False
-        if script_path is None or mode_name is None:
-            self.get_logger().error(
-                f"Received HARDWARE_CONTROL with unknown device={control_msg.device} mode={control_msg.mode}"
-            )
-        else:
-            try:
-                result = subprocess.run(
-                    ["bash", script_path, mode_name],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                )
-                success = result.returncode == 0
-                if success:
-                    self.get_logger().info(f"Set {device_name} mode to '{mode_name}'")
-                else:
-                    self.get_logger().error(
-                        f"Failed to set {device_name} mode to '{mode_name}': {result.stderr.strip()}"
-                    )
-            except Exception as e:
-                self.get_logger().error(f"Error running {script_path}: {e}")
+        success = self._apply_hardware_control(control_msg.device, control_msg.mode)
 
         response = rp.ConfirmHardwareControlMessage(
             src_id=self.vehicle_id,
@@ -514,6 +516,17 @@ class RFBridge(Node):
             success=success,
         ).pack()
         self.send_message(response, return_address)
+
+    def hardware_control_topic_callback(self, msg):
+        """Handles hardware control delivered directly over WiFi (not via XBee)."""
+        try:
+            device_str, mode_str = msg.data.split(":", 1)
+            device = int(rp.HardwareDevice[device_str])
+            mode = int(rp.HardwareMode[mode_str])
+        except (ValueError, KeyError):
+            self.get_logger().error(f"Ignoring malformed hardware control command: {msg.data}")
+            return
+        self._apply_hardware_control(device, mode)
 
     def kill_thruster(self, return_address):
         self.get_logger().info("Received kill command from base station")

@@ -26,7 +26,13 @@ enum COUG_MSG_ID : uint8_t {
     LOCALIZATION_INFO = 0x61,
 
     REQUEST_TIMESTAMP = 0x70,
-    TIMESTAMP = 0x71
+    TIMESTAMP = 0x71,
+
+    HARDWARE_CONTROL = 0x80,
+    CONFIRM_HARDWARE_CONTROL = 0x81,
+
+    ORIGIN_UPDATE = 0x90,
+    CONFIRM_ORIGIN_UPDATE = 0x91
 
 };
 
@@ -114,6 +120,31 @@ struct TimeStamp {
     uint32_t seconds;
     uint32_t nanoseconds;
 };
+
+struct HardwareControl {
+    COUG_MSG_ID msg_id = HARDWARE_CONTROL;
+    uint8_t device; // 0 = relay, 1 = strobe
+    uint8_t mode;   // 0 = auto, 1 = on, 2 = off
+}__attribute__((packed));
+
+struct ConfirmHardwareControl {
+    COUG_MSG_ID msg_id = CONFIRM_HARDWARE_CONTROL;
+    uint8_t device;
+    uint8_t mode;
+    bool success;
+}__attribute__((packed));
+
+struct OriginUpdate {
+    COUG_MSG_ID msg_id = ORIGIN_UPDATE;
+    float latitude;
+    float longitude;
+    float altitude;
+}__attribute__((packed));
+
+struct ConfirmOriginUpdate {
+    COUG_MSG_ID msg_id = CONFIRM_ORIGIN_UPDATE;
+    bool success;
+}__attribute__((packed));
 
 
 
