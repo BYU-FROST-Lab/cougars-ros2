@@ -102,9 +102,6 @@ public:
     transform.transform.rotation.w = qw;
 
     broadcaster_->sendTransform(transform);
-
-    RCLCPP_INFO(this->get_logger(), "Defined Static Transform from %s to %s",
-         header_frame.c_str(), child_frame.c_str());
   }
 
   /**
