@@ -53,6 +53,5 @@ def generate_launch_description():
             name='ekf_filter_node_map',
             parameters=[param_file, fleet_param, {'use_sim_time': sim}],
             namespace=namespace,
-            remappings=[('odometry/filtered', 'odometry/global')]    
         ),
     ])

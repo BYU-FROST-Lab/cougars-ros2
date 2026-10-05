@@ -125,7 +125,6 @@ def generate_launch_description():
         executable='gps_odom.py',
         parameters=[param_file, fleet_param, {'use_sim_time': sim}],
         namespace=namespace,
-        remappings=[('fix', 'imu/nav_sat_fix')]
     )
 
     imu_source_vehicle = Node(
@@ -140,6 +139,15 @@ def generate_launch_description():
     fix_source_vehicle = Node(
         package='topic_tools',
         name='vehicle_fix_source',
+        executable='relay',
+        parameters=[param_file, fleet_param, {'use_sim_time': sim}],
+        namespace=namespace,
+        condition=UnlessCondition(LaunchConfiguration('sim'))
+    )
+
+    odom_source_vehicle = Node(
+        package='topic_tools',
+        name='vehicle_odom_source',
         executable='relay',
         parameters=[param_file, fleet_param, {'use_sim_time': sim}],
         namespace=namespace,

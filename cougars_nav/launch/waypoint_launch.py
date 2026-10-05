@@ -55,7 +55,6 @@ def generate_launch_description():
         parameters=[LaunchConfiguration('param_file'), 
                     {'use_sim_time': sim}],
         output='screen',
-        remappings=[('odometry/global', 'gps/odom')]
     )
     setpoint_transformer_node = Node(
         package='cougars_nav',
