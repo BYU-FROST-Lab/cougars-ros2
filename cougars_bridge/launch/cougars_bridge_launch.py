@@ -137,6 +137,15 @@ def generate_launch_description():
         condition=UnlessCondition(LaunchConfiguration('sim'))
     )
 
+    fix_source_vehicle = Node(
+        package='topic_tools',
+        name='vehicle_fix_source',
+        executable='relay',
+        parameters=[param_file, fleet_param, {'use_sim_time': sim}],
+        namespace=namespace,
+        condition=UnlessCondition(LaunchConfiguration('sim'))
+    )
+
     static_tf_publisher = Node(
         package='cougars_bridge',
         executable='static_tf_publisher',
