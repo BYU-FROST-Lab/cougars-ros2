@@ -259,7 +259,7 @@ public:
 void surface(){
   if (this->init){
     
-    RCLCPP_WARN(this->get_logger(), "Surface (REPORT ONLY, no action taken)");
+    RCLCPP_DEBUG(this->get_logger(), "Surface (REPORT ONLY, no action taken)");
     this->okay = false;
     // REPORT ONLY: uncomment to re-enable the fin surface override
     // surface_fin_override_request->data = true; // true to override
@@ -269,7 +269,7 @@ void surface(){
 
 void disarm(){
   if (this->init){
-    RCLCPP_WARN(this->get_logger(), "Disarm (REPORT ONLY, no action taken)");
+    RCLCPP_DEBUG(this->get_logger(), "Disarm (REPORT ONLY, no action taken)");
     this->okay = false;
     // REPORT ONLY: uncomment to re-enable disarming the thruster
     // arm_request->data = false; // make false to diarm the thruster
@@ -313,7 +313,7 @@ bool update_publishers(){
     if (!topic_has_publishers){
       all_topics_have_publishers = false;
       this->okay = false;
-      RCLCPP_WARN(rclcpp::get_logger("rclcpp"), "%s has no publishers!", itr0.first.c_str());
+      RCLCPP_DEBUG(this->get_logger(), "%s has no publishers!", itr0.first.c_str());
     }
   }
 
@@ -356,7 +356,7 @@ bool update_publishers(){
       if(!dvl_connected_ || is_stale(last_dvl_connected_rx_, this->get_parameter("dvl_connected_timeout").as_int())){
         this->okay = false;
         message.dvl_status.set__data(message.dvl_status.data|1);
-        RCLCPP_WARN(this->get_logger(), "DVL is not connected");
+        RCLCPP_DEBUG(this->get_logger(), "DVL is not connected");
       }
       if(dvl_received_ && latest_dvl_message.pos_std>this->get_parameter("dvl_position_stddev_threshold").as_double()){
         this->okay=false;
@@ -367,7 +367,7 @@ bool update_publishers(){
       if(is_stale(last_modem_rx_, this->get_parameter("modem_message_timeout").as_int())){
         this->okay = false;
         message.modem_status.set__data(1);
-        RCLCPP_WARN(this->get_logger(), "modem_status is not publishing");
+        RCLCPP_DEBUG(this->get_logger(), "modem_status is not publishing");
         // only treat it as an emergency if the modem was working and then dropped out
         if(modem_received_){
           surface_then_disarm();
@@ -393,7 +393,7 @@ bool update_publishers(){
       message.imu_published.set__data(imu_publishing);
       if(!imu_publishing){
         this->okay = false;
-        RCLCPP_WARN(this->get_logger(), "imu/data is not publishing");
+        RCLCPP_DEBUG(this->get_logger(), "imu/data is not publishing");
       }
     }
 
@@ -609,7 +609,7 @@ void leak_callback(const sensor_msgs::msg::FluidPressure &msg){
     );
     }
     else{
-      RCLCPP_WARN(rclcpp::get_logger("rclcpp"), "service not ready");
+      RCLCPP_DEBUG(this->get_logger(), "service not ready");
     }
 
   }
