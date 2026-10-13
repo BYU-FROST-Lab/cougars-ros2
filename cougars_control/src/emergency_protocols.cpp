@@ -75,6 +75,7 @@ public:
     this->declare_parameter("critical_voltage", 14.0); // volts
     this->declare_parameter("modem_message_timeout", 2);
     this->declare_parameter("dvl_connected_timeout",3); // dvl/connected publishes at 1 Hz
+    this->declare_parameter("dvl_position_timeout",2);
     this->declare_parameter("gps_odom_message_timeout",2);
     this->declare_parameter("imu_message_timeout",2);
     this->declare_parameter("dvl_position_stddev_threshold",5.0);
@@ -358,7 +359,10 @@ bool update_publishers(){
         message.dvl_status.set__data(message.dvl_status.data|1);
         RCLCPP_DEBUG(this->get_logger(), "DVL is not connected");
       }
-      if(dvl_received_ && latest_dvl_message.pos_std>this->get_parameter("dvl_position_stddev_threshold").as_double()){
+      // only judge std dev on a fresh dvl/position, otherwise a bad reading from before a
+      // disconnect (or before acoustics were turned off) stays latched forever
+      bool dvl_position_fresh = dvl_received_ && !is_stale(last_dvl_rx_, this->get_parameter("dvl_position_timeout").as_int());
+      if(dvl_position_fresh && latest_dvl_message.pos_std>this->get_parameter("dvl_position_stddev_threshold").as_double()){
         this->okay=false;
         message.dvl_status.set__data(message.dvl_status.data|(1<<1));
       }
@@ -436,6 +440,7 @@ bool update_publishers(){
 
   void dvl_callback(const dvl_msgs::msg::DVLDR &msg){
     latest_dvl_message=msg;
+    last_dvl_rx_ = this->now();
     dvl_received_ = true;
   }
   void dvl_connected_callback(const std_msgs::msg::Bool &msg){
@@ -668,7 +673,7 @@ void leak_callback(const sensor_msgs::msg::FluidPressure &msg){
   float gps_origin_lat,gps_origin_lon,gps_origin_alt;
   bool gps_bad_origin;
   // last time a message was received on each monitored topic
-  rclcpp::Time last_dvl_connected_rx_, last_modem_rx_, last_gps_odom_rx_, last_imu_rx_;
+  rclcpp::Time last_dvl_rx_, last_dvl_connected_rx_, last_modem_rx_, last_gps_odom_rx_, last_imu_rx_;
   bool dvl_received_ = false;
   bool dvl_connected_ = false;
   bool modem_received_ = false;
