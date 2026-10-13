@@ -17,7 +17,6 @@
 #include <sensor_msgs/msg/battery_state.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include "gps_msgs/msg/gps_fix.hpp"
-#include "dvl_msgs/msg/dvldr.hpp"
 #include "seatrac_interfaces/msg/modem_status.hpp"
 #include "geographic_msgs/msg/geo_point.hpp"
 
@@ -75,10 +74,8 @@ public:
     this->declare_parameter("critical_voltage", 14.0); // volts
     this->declare_parameter("modem_message_timeout", 2);
     this->declare_parameter("dvl_connected_timeout",3); // dvl/connected publishes at 1 Hz
-    this->declare_parameter("dvl_position_timeout",2);
     this->declare_parameter("gps_odom_message_timeout",2);
     this->declare_parameter("imu_message_timeout",2);
-    this->declare_parameter("dvl_position_stddev_threshold",5.0);
     this->declare_parameter("gps_sat_num_threshold",4);
     this->declare_parameter("gps_origin_check",false);
     this->declare_parameter("origin_gps_msgs",3);
@@ -98,8 +95,6 @@ public:
     imu_subscription_ = this->create_subscription<sensor_msgs::msg::Imu>("imu/data", 1, std::bind(&EmergencyProtocols::imu_callback, this, _1));
     battery_subscription_ = this->create_subscription<sensor_msgs::msg::BatteryState>("battery/data", 1, std::bind(&EmergencyProtocols::battery_callback, this, _1));
     gps_subscription_ = this->create_subscription<gps_msgs::msg::GPSFix>("extended_fix", 1, std::bind(&EmergencyProtocols::gps_fix_callback, this, _1));
-    // dvl publishes best effort (sensor data qos), a reliable subscription would never connect
-    dvl_subscription_ = this->create_subscription<dvl_msgs::msg::DVLDR>("dvl/position",qos,std::bind(&EmergencyProtocols::dvl_callback, this, _1));
     // TCP link state from the dvl driver, published whether or not acoustics are running
     dvl_connected_subscription_ = this->create_subscription<std_msgs::msg::Bool>("dvl/connected",1,std::bind(&EmergencyProtocols::dvl_connected_callback, this, _1));
     modem_subscription_ = this->create_subscription<seatrac_interfaces::msg::ModemStatus>("modem_status",1,std::bind(&EmergencyProtocols::modem_callback,this,_1));
@@ -146,7 +141,6 @@ public:
     builtin_interfaces::msg::Time defaultTime =builtin_interfaces::msg::Time();
     defaultTime.set__sec(0);
     defaultHeader.set__stamp(defaultTime);
-    latest_dvl_message.set__header(defaultHeader);
     latest_gps_message.set__header(defaultHeader);
     latest_modem_message.set__header(defaultHeader);
 
@@ -194,7 +188,7 @@ public:
                               {"leak/data", true},
                               {"depth/odom", true},
                               {"modem_status", true},
-                              {"dvl/position", true},
+                              {"dvl/connected", true},
                               {"gps/odom", true},
                               {"imu/data",true}});
   
@@ -352,19 +346,12 @@ bool update_publishers(){
 
       // "publishing" = a message was received within the timeout (receive time, not header stamp)
 
-      // DVL: bit 0 = not connected (dvl/connected false or not publishing), bit 1 = position std dev above threshold
+      // DVL: 1 = not connected (dvl/connected false or not publishing)
       // dvl/position only publishes once acoustics are on, so connection comes from dvl/connected instead
       if(!dvl_connected_ || is_stale(last_dvl_connected_rx_, this->get_parameter("dvl_connected_timeout").as_int())){
         this->okay = false;
-        message.dvl_status.set__data(message.dvl_status.data|1);
+        message.dvl_status.set__data(1);
         RCLCPP_DEBUG(this->get_logger(), "DVL is not connected");
-      }
-      // only judge std dev on a fresh dvl/position, otherwise a bad reading from before a
-      // disconnect (or before acoustics were turned off) stays latched forever
-      bool dvl_position_fresh = dvl_received_ && !is_stale(last_dvl_rx_, this->get_parameter("dvl_position_timeout").as_int());
-      if(dvl_position_fresh && latest_dvl_message.pos_std>this->get_parameter("dvl_position_stddev_threshold").as_double()){
-        this->okay=false;
-        message.dvl_status.set__data(message.dvl_status.data|(1<<1));
       }
 
       // Modem: 1 = modem_status not publishing
@@ -438,11 +425,6 @@ bool update_publishers(){
   }
 
 
-  void dvl_callback(const dvl_msgs::msg::DVLDR &msg){
-    latest_dvl_message=msg;
-    last_dvl_rx_ = this->now();
-    dvl_received_ = true;
-  }
   void dvl_connected_callback(const std_msgs::msg::Bool &msg){
     dvl_connected_ = msg.data;
     last_dvl_connected_rx_ = this->now();
@@ -650,7 +632,6 @@ void leak_callback(const sensor_msgs::msg::FluidPressure &msg){
   rclcpp::Subscription<cougars_interfaces::msg::SystemControl>::SharedPtr system_control_subscription_;
   rclcpp::Subscription<gps_msgs::msg::GPSFix>::SharedPtr gps_subscription_;
   rclcpp::Subscription<geographic_msgs::msg::GeoPoint>::SharedPtr origin_subscription_;
-  rclcpp::Subscription<dvl_msgs::msg::DVLDR>::SharedPtr dvl_subscription_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr dvl_connected_subscription_;
   rclcpp::Subscription<seatrac_interfaces::msg::ModemStatus>::SharedPtr modem_subscription_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr gps_odom_subscription_;
@@ -673,13 +654,11 @@ void leak_callback(const sensor_msgs::msg::FluidPressure &msg){
   float gps_origin_lat,gps_origin_lon,gps_origin_alt;
   bool gps_bad_origin;
   // last time a message was received on each monitored topic
-  rclcpp::Time last_dvl_rx_, last_dvl_connected_rx_, last_modem_rx_, last_gps_odom_rx_, last_imu_rx_;
-  bool dvl_received_ = false;
+  rclcpp::Time last_dvl_connected_rx_, last_modem_rx_, last_gps_odom_rx_, last_imu_rx_;
   bool dvl_connected_ = false;
   bool modem_received_ = false;
   //messages
   gps_msgs::msg::GPSFix latest_gps_message=gps_msgs::msg::GPSFix();
-  dvl_msgs::msg::DVLDR latest_dvl_message=dvl_msgs::msg::DVLDR();
   seatrac_interfaces::msg::ModemStatus latest_modem_message;
    // topic name vector
   std::map<std::string, bool> topics_publishing;
