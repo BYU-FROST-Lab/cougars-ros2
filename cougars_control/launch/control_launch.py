@@ -13,6 +13,7 @@ def generate_launch_description():
     Parameters:
     - fins_manual: if true, use fins_manual.py instead of coug_controls.cpp
     - manual_mission: if true, run manual_mission.py instead of waypoint_follower.cpp. fins_manual and manual_mission are NOT related.  fins_manual directly controls the fins, while manual_mission runs a timed mission.
+    - emergency_protocols: if true (default), run the emergency_protocols safety monitor
     '''
 
     ### Launch arguments
@@ -47,6 +48,10 @@ def generate_launch_description():
     manual_mission_launch_arg = DeclareLaunchArgument(
         'manual_mission',
         default_value='False'
+    )
+    emergency_protocols_launch_arg = DeclareLaunchArgument(
+        'emergency_protocols',
+        default_value='True'
     )
 
     ### Get launch argument values
@@ -97,6 +102,15 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('fins_manual'))
     )
 
+    # emergency protocols node monitors vehicle health and surfaces/disarms on faults
+    emergency_protocols_node = Node(
+        package='cougars_control',
+        executable='emergency_protocols',
+        parameters=[param_file, fleet_param, {'use_sim_time': sim}],
+        namespace=namespace,
+        output='log',
+        condition=IfCondition(LaunchConfiguration('emergency_protocols'))
+    )
 
 
     launch_actions = [
@@ -109,12 +123,14 @@ def generate_launch_description():
         fins_manual_launch_arg,
         manual_mission_launch_arg,
         verbose_launch_arg,
+        emergency_protocols_launch_arg,
 
         # nodes
         mc_serial_node,
         kinematics_node,
         controls_node,
-        fins_manual_node
+        fins_manual_node,
+        emergency_protocols_node
     ]
 
     return launch.LaunchDescription(launch_actions)
