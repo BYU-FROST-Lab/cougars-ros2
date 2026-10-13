@@ -18,7 +18,7 @@ class DVLAcousticController(Node):
         # Subscriber with matching QoS
         self.subscription = self.create_subscription(
             SystemControl,
-            'system/status',
+            'system/control',
             self.listener_callback,
             1
         )

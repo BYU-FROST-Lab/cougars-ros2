@@ -137,7 +137,7 @@ public:
 
         // publisher to start mission
         this->init_publisher_ = this->create_publisher<cougars_interfaces::msg::SystemControl>(
-            "system/status", 10
+            "system/control", 10
         );
 
         // publisher for the shared origin, matching the WiFi/radio origin delivery paths.

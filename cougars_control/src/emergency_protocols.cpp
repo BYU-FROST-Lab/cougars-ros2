@@ -2,14 +2,14 @@
 #include <iostream>
 #include <chrono>
 #include <cstdlib>
+#include <cmath>
 #include <numeric>
 #include <functional>
 #include <vector>
 #include "rclcpp/rclcpp.hpp"
 #include "std_srvs/srv/set_bool.hpp"
-#include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 #include "nav_msgs/msg/odometry.hpp"
-#include "cougars_interfaces/msg/u_command.hpp"
+#include "cougars_interfaces/msg/system_control.hpp"
 #include "cougars_interfaces/msg/system_status.hpp"
 #include "std_msgs/msg/int32.hpp"
 #include <sensor_msgs/msg/fluid_pressure.hpp>
@@ -74,6 +74,8 @@ public:
     this->declare_parameter("critical_voltage", 14.0); // volts
     this->declare_parameter("modem_message_timeout", 2);
     this->declare_parameter("dvl_message_timeout",2);
+    this->declare_parameter("gps_odom_message_timeout",2);
+    this->declare_parameter("imu_message_timeout",2);
     this->declare_parameter("dvl_position_stddev_threshold",5.0);
     this->declare_parameter("gps_sat_num_threshold",4);
     this->declare_parameter("gps_origin_check",false);
@@ -88,22 +90,26 @@ public:
     //////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-    depth_subscription_ = this->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>("depth_data", 10, std::bind(&EmergencyProtocols::depth_callback, this, _1));
+    depth_subscription_ = this->create_subscription<nav_msgs::msg::Odometry>("depth/odom", 10, std::bind(&EmergencyProtocols::depth_callback, this, _1));
     leak_subscription_ = this->create_subscription<sensor_msgs::msg::FluidPressure>("leak/data", 1, std::bind(&EmergencyProtocols::leak_callback, this, _1));
-    imu_subscription_ = this->create_subscription<sensor_msgs::msg::Imu>("modem_imu", 1, std::bind(&EmergencyProtocols::imu_callback, this, _1));
+    // imu/data is the relay output (vehicle_imu_source), whichever IMU is selected as the source
+    imu_subscription_ = this->create_subscription<sensor_msgs::msg::Imu>("imu/data", 1, std::bind(&EmergencyProtocols::imu_callback, this, _1));
     battery_subscription_ = this->create_subscription<sensor_msgs::msg::BatteryState>("battery/data", 1, std::bind(&EmergencyProtocols::battery_callback, this, _1));
     gps_subscription_ = this->create_subscription<gps_msgs::msg::GPSFix>("extended_fix", 1, std::bind(&EmergencyProtocols::gps_fix_callback, this, _1));
-    dvl_subscription_ = this->create_subscription<dvl_msgs::msg::DVLDR>("dvl/position",1,std::bind(&EmergencyProtocols::dvl_callback, this, _1));
+    // dvl publishes best effort (sensor data qos), a reliable subscription would never connect
+    dvl_subscription_ = this->create_subscription<dvl_msgs::msg::DVLDR>("dvl/position",qos,std::bind(&EmergencyProtocols::dvl_callback, this, _1));
     modem_subscription_ = this->create_subscription<seatrac_interfaces::msg::ModemStatus>("modem_status",1,std::bind(&EmergencyProtocols::modem_callback,this,_1));
+    gps_odom_subscription_ = this->create_subscription<nav_msgs::msg::Odometry>("gps/odom",1,std::bind(&EmergencyProtocols::gps_odom_callback,this,_1));
     //         qos,std::bind(&EmergencyProtocols::factor_graph_callback, this, _1));
     // vehicle_status_moos_subscription_ = this->create_subscription<cougars_interfaces::msg::VehicleStatus>("vehicle_status", 
     //         qos, std::bind(&EmergencyProtocols::moos_status_callback, this, _1));
 
 
-    command_subscription_ =
-    this->create_subscription<cougars_interfaces::msg::UCommand>(
-        "controls/command", 10,
-        std::bind(&EmergencyProtocols::command_callback, this, _1));
+    // emergency actions are only taken once the mission has been started
+    system_control_subscription_ =
+    this->create_subscription<cougars_interfaces::msg::SystemControl>(
+        "system/control", 1,
+        std::bind(&EmergencyProtocols::system_control_callback, this, _1));
 
 
     status_publisher_ = this->create_publisher<cougars_interfaces::msg::SystemStatus>("safety_status", 10);
@@ -112,12 +118,17 @@ public:
     origin_qos.reliable();
     origin_qos.transient_local();
     origin_subscription_ = this->create_subscription<geographic_msgs::msg::GeoPoint>(
-        "origin", origin_qos,
+        "/origin", origin_qos,
         std::bind(&EmergencyProtocols::origin_callback, this, _1));
 
     this->okay = true;
     this->init = false;
     this->imuPub=false;
+    // receive times start at node startup, so a topic that never publishes is flagged after its timeout
+    last_dvl_rx_ = this->now();
+    last_modem_rx_ = this->now();
+    last_gps_odom_rx_ = this->now();
+    last_imu_rx_ = this->now();
     this->gps_count=0;
     this->gps_origin_lat=0;
     this->gps_origin_lon=0;
@@ -176,13 +187,13 @@ public:
 
 
     topics_publishing.insert({{"battery/data", true},
-                              {"leak/data", true}, 
-                              {"depth_data", true},
+                              {"leak/data", true},
+                              {"depth/odom", true},
                               {"modem_status", true},
-                              {"dvl/dead_reckoning", true},
-                              {"gps_odom", true},
+                              {"dvl/position", true},
+                              {"gps/odom", true},
                               {"extended_fix", true},
-                              {"modem_imu",true}});
+                              {"imu/data",true}});
   
 
     //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -199,13 +210,14 @@ public:
     //      * TODO: add more as needed
     arm_request = std::make_shared<std_srvs::srv::SetBool::Request>();
     arm_thruster_client = this->create_client<std_srvs::srv::SetBool>("arm_thruster");
-    while (!arm_thruster_client->wait_for_service(1s)){
-      if (!rclcpp::ok()) {
-        RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Interrupted while waiting for the service. Exiting.");
-        break;
-      }
-      RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "service not available, waiting again...");
-    }
+    // REPORT ONLY: no actions are taken, so don't block startup waiting for kinematics
+    // while (!arm_thruster_client->wait_for_service(1s)){
+    //   if (!rclcpp::ok()) {
+    //     RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Interrupted while waiting for the service. Exiting.");
+    //     break;
+    //   }
+    //   RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "service not available, waiting again...");
+    // }
 
     ///////////////////////////////////
     // override fins to surface request
@@ -215,13 +227,14 @@ public:
     //      * TODO: add more as needed
     surface_fin_override_request = std::make_shared<std_srvs::srv::SetBool::Request>();
     surface_fin_override_client = this->create_client<std_srvs::srv::SetBool>("surface");
-    while (!surface_fin_override_client->wait_for_service(1s)) {
-      if (!rclcpp::ok()) {
-        RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Interrupted while waiting for the service. Exiting.");
-        break;
-      }
-      RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "service not available, waiting again...");
-    }
+    // REPORT ONLY: no actions are taken, so don't block startup waiting for kinematics
+    // while (!surface_fin_override_client->wait_for_service(1s)) {
+    //   if (!rclcpp::ok()) {
+    //     RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Interrupted while waiting for the service. Exiting.");
+    //     break;
+    //   }
+    //   RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "service not available, waiting again...");
+    // }
 
 
     ///////////////////////////////////
@@ -244,19 +257,21 @@ public:
 void surface(){
   if (this->init){
     
-    RCLCPP_INFO(this->get_logger(), "Surface");
+    RCLCPP_WARN(this->get_logger(), "Surface (REPORT ONLY, no action taken)");
     this->okay = false;
-    surface_fin_override_request->data = true; // true to override
-    send_set_bool_req(surface_fin_override_request, surface_fin_override_client);
-  } 
+    // REPORT ONLY: uncomment to re-enable the fin surface override
+    // surface_fin_override_request->data = true; // true to override
+    // send_set_bool_req(surface_fin_override_request, surface_fin_override_client);
+  }
 }
 
 void disarm(){
   if (this->init){
-    RCLCPP_INFO(this->get_logger(), "Disarm");
+    RCLCPP_WARN(this->get_logger(), "Disarm (REPORT ONLY, no action taken)");
     this->okay = false;
-    arm_request->data = false; // make false to diarm the thruster
-    send_set_bool_req(arm_request, arm_thruster_client);
+    // REPORT ONLY: uncomment to re-enable disarming the thruster
+    // arm_request->data = false; // make false to diarm the thruster
+    // send_set_bool_req(arm_request, arm_thruster_client);
   }
 }
 
@@ -325,48 +340,72 @@ bool update_publishers(){
       if(!update_publishers()){
 
         this->okay = false;
-        // handle topics 
+        // handle topics
         if (!topics_publishing["modem_status"]){
           surface_then_disarm();
         }
 
       }
-      if(latest_dvl_message.header.stamp.sec!=0){//checking if this is a real message, not just default
-        if(((this->get_clock()->now().seconds()-latest_dvl_message.header.stamp.sec)>this->get_parameter("dvl_message_timeout").as_int())){
-          this->okay = false;
-          message.dvl_status.set__data(message.dvl_status.data|1);
-        } 
-        if(latest_dvl_message.pos_std>this->get_parameter("dvl_position_stddev_threshold").as_double()){
-          this->okay=false;
-          message.dvl_status.set__data(message.dvl_status.data|(1>>1));
-        }
+
+      // "publishing" = a message was received within the timeout (receive time, not header stamp)
+
+      // DVL: bit 0 = dvl/position not publishing, bit 1 = position std dev above threshold
+      if(is_stale(last_dvl_rx_, this->get_parameter("dvl_message_timeout").as_int())){
+        this->okay = false;
+        message.dvl_status.set__data(message.dvl_status.data|1);
+        RCLCPP_WARN(this->get_logger(), "dvl/position is not publishing");
       }
-      if(latest_modem_message.header.stamp.sec!=0){ //checking if this is a real message, not just default
-        if(((this->get_clock()->now().seconds()-latest_modem_message.header.stamp.sec)>this->get_parameter("modem_message_timeout").as_int())){
-          this->okay = false;
-          message.modem_status.set__data(1);
+      if(dvl_received_ && latest_dvl_message.pos_std>this->get_parameter("dvl_position_stddev_threshold").as_double()){
+        this->okay=false;
+        message.dvl_status.set__data(message.dvl_status.data|(1<<1));
+      }
+
+      // Modem: 1 = modem_status not publishing
+      if(is_stale(last_modem_rx_, this->get_parameter("modem_message_timeout").as_int())){
+        this->okay = false;
+        message.modem_status.set__data(1);
+        RCLCPP_WARN(this->get_logger(), "modem_status is not publishing");
+        // only treat it as an emergency if the modem was working and then dropped out
+        if(modem_received_){
           surface_then_disarm();
         }
       }
-      if(gps_bad_origin&&this->get_parameter("gps_origin_check").as_bool()){
-        message.gps_status.set__data(2);
-        this->okay=false;
+
+      // GPS: bit 0 = gps/odom not publishing, bit 1 = too few satellites, bit 2 = bad origin
+      if(is_stale(last_gps_odom_rx_, this->get_parameter("gps_odom_message_timeout").as_int())){
+        //not going to set okay to false because this is expected underwater
+        message.gps_status.set__data(message.gps_status.data|1);
       }
       if(latest_gps_message.status.satellites_used<(this->get_parameter("gps_sat_num_threshold").as_int())){
         //not going to set okay to false because this is expected during the mission
-        message.gps_status.set__data(message.gps_status.data|1);
+        message.gps_status.set__data(message.gps_status.data|(1<<1));
+      }
+      if(gps_bad_origin&&this->get_parameter("gps_origin_check").as_bool()){
+        message.gps_status.set__data(message.gps_status.data|(1<<2));
+        this->okay=false;
+      }
+
+      // IMU: true = the imu relay (vehicle_imu_source) is publishing on imu/data
+      bool imu_publishing = !is_stale(last_imu_rx_, this->get_parameter("imu_message_timeout").as_int());
+      message.imu_published.set__data(imu_publishing);
+      if(!imu_publishing){
+        this->okay = false;
+        RCLCPP_WARN(this->get_logger(), "imu/data is not publishing");
       }
     }
 
     
-    if(okay){
-      message.emergency_status.set__data(0);
-    } else if(back_near_surface|| !okay){
-      message.emergency_status.set__data(2); 
-    }else if(surfacing_then_disarm){
+    // 0 = ok, 1 = surfacing, 2 = surfaced/disarmed (see SystemStatus.msg)
+    // REPORT ONLY: nothing is actually surfaced or disarmed, so 1 just means an emergency
+    // was detected (GUI shows "EMERGENCY: Recall Vehicle"). Never claim 2 while actions are off.
+    // if(surfacing_then_disarm && back_near_surface){
+    //   message.emergency_status.set__data(2);
+    // } else
+    if(surfacing_then_disarm){
       message.emergency_status.set__data(1);
+    } else {
+      message.emergency_status.set__data(0);
     }
-    message.emergency_status.set__data(okay);
     status_publisher_->publish(message);
 
   }
@@ -380,7 +419,7 @@ bool update_publishers(){
     if(this->gps_count<this->get_parameter("origin_gps_msgs").as_int()){
       this->gps_count++;
       if(gps_origin_lat!=0 && gps_origin_lon!=0 && gps_origin_alt!=0){ //params grabbed
-        if(abs(msg.longitude-gps_origin_lon>this->get_parameter("origin_gps_threshold").as_double()) || abs(msg.altitude-gps_origin_alt>this->get_parameter("origin_gps_threshold_alt").as_int()) || abs(msg.latitude-gps_origin_lat)>this->get_parameter("origin_gps_threshold").as_double()){
+        if(std::abs(msg.longitude-gps_origin_lon)>this->get_parameter("origin_gps_threshold").as_double() || std::abs(msg.altitude-gps_origin_alt)>this->get_parameter("origin_gps_threshold_alt").as_int() || std::abs(msg.latitude-gps_origin_lat)>this->get_parameter("origin_gps_threshold").as_double()){
             RCLCPP_ERROR(this->get_logger(), "GPS origin likely set incorrectly");
             this->gps_bad_origin=1;
         }
@@ -394,16 +433,32 @@ bool update_publishers(){
 
   void dvl_callback(const dvl_msgs::msg::DVLDR &msg){
     latest_dvl_message=msg;
+    last_dvl_rx_ = this->now();
+    dvl_received_ = true;
   }
   void modem_callback(const seatrac_interfaces::msg::ModemStatus &msg){
     latest_modem_message=msg;
+    last_modem_rx_ = this->now();
+    modem_received_ = true;
+  }
+  void gps_odom_callback(const nav_msgs::msg::Odometry &){
+    last_gps_odom_rx_ = this->now();
   }
 
-  void command_callback(const cougars_interfaces::msg::UCommand &msg) {
-      this->init = true;
+  // true if nothing has been received within timeout_s seconds
+  bool is_stale(const rclcpp::Time &last_rx, int64_t timeout_s){
+    return (this->now() - last_rx).seconds() > static_cast<double>(timeout_s);
+  }
+
+  void system_control_callback(const cougars_interfaces::msg::SystemControl &msg) {
+      // latch: once the mission has started, keep protecting the vehicle
+      if (msg.start.data){
+        this->init = true;
+      }
   }
   void imu_callback(const sensor_msgs::msg::Imu &msg){
     this->imuPub=true;
+    last_imu_rx_ = this->now();
   }
   void surface_waiter_timer_callback_(){
 
@@ -444,7 +499,7 @@ bool update_publishers(){
 //  Requests to be sent:
 //      * surface_fin_override 
 
-void depth_callback(const geometry_msgs::msg::PoseWithCovarianceStamped &msg){
+void depth_callback(const nav_msgs::msg::Odometry &msg){
   if (this->get_parameter("monitor_depth").as_bool()){
     depth_val = msg.pose.pose.position.z;
 
@@ -457,7 +512,7 @@ void depth_callback(const geometry_msgs::msg::PoseWithCovarianceStamped &msg){
     // if the current depth is too deep, surface
     if (depth_val < this->get_parameter("deepest_safe_depth").as_double()){
         RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "TOO DEEP ERROR.");
-        RCLCPP_INFO(this->get_logger(), "Emergency request being sent in response to leak");
+        RCLCPP_INFO(this->get_logger(), "Emergency request being sent in response to depth");
         surface_then_disarm();
     }
 
@@ -575,17 +630,18 @@ void leak_callback(const sensor_msgs::msg::FluidPressure &msg){
 //////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////// SUBSCRIPTION/TIMER DECLARATIONS //////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
-  rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr depth_subscription_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr depth_subscription_;
   rclcpp::Subscription<sensor_msgs::msg::FluidPressure>::SharedPtr leak_subscription_;
   rclcpp::Subscription<sensor_msgs::msg::BatteryState>::SharedPtr battery_subscription_;
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_subscription_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr smoothed_output_subscription_;
 //   rclcpp::Subscription<cougars_interfaces::msg::VehicleStatus>::SharedPtr vehicle_status_moos_subscription_;
-  rclcpp::Subscription<cougars_interfaces::msg::UCommand>::SharedPtr command_subscription_;
+  rclcpp::Subscription<cougars_interfaces::msg::SystemControl>::SharedPtr system_control_subscription_;
   rclcpp::Subscription<gps_msgs::msg::GPSFix>::SharedPtr gps_subscription_;
   rclcpp::Subscription<geographic_msgs::msg::GeoPoint>::SharedPtr origin_subscription_;
   rclcpp::Subscription<dvl_msgs::msg::DVLDR>::SharedPtr dvl_subscription_;
   rclcpp::Subscription<seatrac_interfaces::msg::ModemStatus>::SharedPtr modem_subscription_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr gps_odom_subscription_;
 
 
 
@@ -604,6 +660,10 @@ void leak_callback(const sensor_msgs::msg::FluidPressure &msg){
   int gps_count;
   float gps_origin_lat,gps_origin_lon,gps_origin_alt;
   bool gps_bad_origin;
+  // last time a message was received on each monitored topic
+  rclcpp::Time last_dvl_rx_, last_modem_rx_, last_gps_odom_rx_, last_imu_rx_;
+  bool dvl_received_ = false;
+  bool modem_received_ = false;
   //messages
   gps_msgs::msg::GPSFix latest_gps_message=gps_msgs::msg::GPSFix();
   dvl_msgs::msg::DVLDR latest_dvl_message=dvl_msgs::msg::DVLDR();
