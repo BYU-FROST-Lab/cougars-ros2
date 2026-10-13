@@ -19,6 +19,7 @@
 #include "cougars_interfaces/msg/system_control.hpp"
 #include "cougars_interfaces/msg/way_point.hpp"
 #include "geographic_msgs/msg/geo_point.hpp"
+#include "std_msgs/msg/string.hpp"
 
 #include <seatrac_driver/SeatracEnums.h>
 
@@ -120,6 +121,13 @@ public:
         this->modem_subscriber_ = this->create_subscription<seatrac_interfaces::msg::ModemRec>(
             "modem_rec", 10,
             std::bind(&ComsNode::listen_to_modem, this, _1)
+        );
+
+        // relay/strobe commands delivered over WiFi as "DEVICE:MODE" (e.g. "RELAY:ON"),
+        // bridged from coug{id}/hardware_control by base_station_wifi.py
+        this->hardware_control_subscriber_ = this->create_subscription<std_msgs::msg::String>(
+            "hardware_control_cmd", 10,
+            std::bind(&ComsNode::hardware_control_topic_callback, this, _1)
         );
 
         // publisher for sending messages via the modem
@@ -299,14 +307,12 @@ public:
         );
     }
 
-    // runs set_relay.sh/set_strobe.sh (the same scripts used from the command line) and
-    // reports success back to the base station over the modem
-    void handle_hardware_control(seatrac_interfaces::msg::ModemRec* msg) {
-        const HardwareControl* control_msg = reinterpret_cast<const HardwareControl*>(msg->packet_data.data());
-
-        const char* script_name = (control_msg->device == 0) ? "set_relay.sh" : "set_strobe.sh";
+    // runs set_relay.sh/set_strobe.sh (the same scripts used from the command line)
+    // device: 0 = relay, 1 = strobe. mode: 0 = auto, 1 = on, 2 = off
+    bool apply_hardware_control(uint8_t device, uint8_t mode) {
+        const char* script_name = (device == 0) ? "set_relay.sh" : "set_strobe.sh";
         const char* mode_name;
-        switch (control_msg->mode) {
+        switch (mode) {
             case 1: mode_name = "on"; break;
             case 2: mode_name = "off"; break;
             default: mode_name = "auto"; break;
@@ -317,16 +323,38 @@ public:
         bool success = (std::system(command.c_str()) == 0);
 
         if (success) {
-            RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Set hardware (device=%d) mode to '%s'", control_msg->device, mode_name);
+            RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Set hardware (device=%d) mode to '%s'", device, mode_name);
         } else {
-            RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Failed to set hardware (device=%d) mode to '%s'", control_msg->device, mode_name);
+            RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Failed to set hardware (device=%d) mode to '%s'", device, mode_name);
         }
+        return success;
+    }
+
+    // hardware control received over the modem; reports success back to the base station
+    void handle_hardware_control(seatrac_interfaces::msg::ModemRec* msg) {
+        const HardwareControl* control_msg = reinterpret_cast<const HardwareControl*>(msg->packet_data.data());
 
         ConfirmHardwareControl confirm;
         confirm.device = control_msg->device;
         confirm.mode = control_msg->mode;
-        confirm.success = success;
+        confirm.success = apply_hardware_control(control_msg->device, control_msg->mode);
         send_acoustic_message(base_station_beacon_id_, sizeof(confirm), (uint8_t*)&confirm);
+    }
+
+    // hardware control received over WiFi as "DEVICE:MODE"
+    void hardware_control_topic_callback(const std_msgs::msg::String& msg) {
+        const std::string& data = msg.data;
+        size_t sep = data.find(':');
+        std::string device_str = data.substr(0, sep);
+        std::string mode_str = (sep == std::string::npos) ? "" : data.substr(sep + 1);
+
+        int device = (device_str == "RELAY") ? 0 : (device_str == "STROBE") ? 1 : -1;
+        int mode = (mode_str == "AUTO") ? 0 : (mode_str == "ON") ? 1 : (mode_str == "OFF") ? 2 : -1;
+        if (device < 0 || mode < 0) {
+            RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Ignoring malformed hardware control command: %s", data.c_str());
+            return;
+        }
+        apply_hardware_control(device, mode);
     }
 
     // publishes an origin received over the modem, matching the WiFi/radio origin paths
@@ -485,6 +513,7 @@ private:
     rclcpp::Subscription<dvl_msgs::msg::DVLDR>::SharedPtr dvl_subscriber_;
     rclcpp::Subscription<dvl_msgs::msg::DVL>::SharedPtr dvl_vel_subscriber_;
     rclcpp::Subscription<cougars_interfaces::msg::WayPoint>::SharedPtr waypoint_subscriber_;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr hardware_control_subscriber_;
 
     rclcpp::Publisher<cougars_interfaces::msg::LocalizationData>::SharedPtr localization_data_publisher_;
     rclcpp::Publisher<cougars_interfaces::msg::LocalizationDataShort>::SharedPtr localization_data_short_publisher_;

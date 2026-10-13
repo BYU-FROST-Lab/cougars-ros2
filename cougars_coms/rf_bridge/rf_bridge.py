@@ -138,14 +138,6 @@ class RFBridge(Node):
         # listens on control/u_cmd for ActuatorCommand messages.
         self.actuator_command_pub = self.create_publisher(ActuatorCommand, 'control/u_cmd', 10)
 
-        # Direct ROS topic for hardware control delivered over WiFi (bridged from
-        # coug{id}/hardware_control by base_station_wifi.py's VehicleWifiConnection).
-        self.hardware_control_sub = self.create_subscription(
-            String,
-            'hardware_control_cmd',
-            self.hardware_control_topic_callback,
-            10)
-
         # Register XBee data receive callback
         self.device.add_data_received_callback(self.data_receive_callback)
         self.get_logger().info("RF Bridge node started using digi-xbee library.")
@@ -518,17 +510,6 @@ class RFBridge(Node):
             success=success,
         ).pack()
         self.send_message(response, return_address)
-
-    def hardware_control_topic_callback(self, msg):
-        """Handles hardware control delivered directly over WiFi (not via XBee)."""
-        try:
-            device_str, mode_str = msg.data.split(":", 1)
-            device = int(rp.HardwareDevice[device_str])
-            mode = int(rp.HardwareMode[mode_str])
-        except (ValueError, KeyError):
-            self.get_logger().error(f"Ignoring malformed hardware control command: {msg.data}")
-            return
-        self._apply_hardware_control(device, mode)
 
     def kill_thruster(self, return_address):
         self.get_logger().info("Received kill command from base station")

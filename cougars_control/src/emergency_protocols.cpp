@@ -192,7 +192,6 @@ public:
                               {"modem_status", true},
                               {"dvl/position", true},
                               {"gps/odom", true},
-                              {"extended_fix", true},
                               {"imu/data",true}});
   
 
