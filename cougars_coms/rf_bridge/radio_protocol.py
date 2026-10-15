@@ -206,6 +206,16 @@ class StatusResponseMessage(RadioMessage):
     cov_roll: float = 0.0
     cov_pitch: float = 0.0
     cov_yaw: float = 0.0
+    # SystemStatus (safety_status) fields. Each Int8 status is packed into 2 bits
+    # (values above 3 clamp to 3, still "not good"); safety_valid is False until the
+    # vehicle has received a safety_status message, so zeros aren't mistaken for "all good".
+    safety_valid: bool = False
+    imu_published: bool = False
+    depth_status: int = 0
+    gps_status: int = 0
+    modem_status: int = 0
+    dvl_status: int = 0
+    emergency_status: int = 0
 
     # Most fields are packed as scaled int16s (fixed-point) instead of floats:
     # each value is multiplied by a known scale, rounded, and clamped to the
@@ -222,7 +232,39 @@ class StatusResponseMessage(RadioMessage):
     _VELOCITY_SCALE = 1000.0     # mm/s resolution, +/-32.767 m/s range
     _DISTANCE_SCALE = 100.0      # cm resolution; horizontal_distance_error is int32, depth/bearing stay int16
 
-    _STRUCT = struct.Struct("<2i5hf6hBi2h12s3Bf6f")
+    # Header (2) + _STRUCT (88) = 90 bytes, exactly MAX_XBEE_PAYLOAD_BYTES, so a
+    # status response always fits in one XBee frame. Don't grow this without
+    # accounting for that.
+    _LEGACY_STRUCT = struct.Struct("<2i5hf6hBi2h12s3Bf6f")
+    _STRUCT = struct.Struct("<2i5hf6hBi2h12s3Bf6fH")
+
+    # Bit layout of the safety status uint16
+    _SAFETY_FIELDS = (
+        # (attribute, shift, width)
+        ("depth_status", 2, 2),
+        ("gps_status", 4, 2),
+        ("modem_status", 6, 2),
+        ("dvl_status", 8, 2),
+        ("emergency_status", 10, 2),
+    )
+
+    def _pack_safety(self) -> int:
+        bits = (1 if self.safety_valid else 0) | ((1 if self.imu_published else 0) << 1)
+        for name, shift, width in self._SAFETY_FIELDS:
+            mask = (1 << width) - 1
+            value = max(0, min(mask, int(getattr(self, name))))
+            bits |= value << shift
+        return bits
+
+    @classmethod
+    def _unpack_safety(cls, bits: int) -> dict:
+        fields = {
+            "safety_valid": bool(bits & 1),
+            "imu_published": bool(bits & (1 << 1)),
+        }
+        for name, shift, width in cls._SAFETY_FIELDS:
+            fields[name] = (bits >> shift) & ((1 << width) - 1)
+        return fields
 
     def pack(self) -> bytes:
         return self.pack_header() + self._STRUCT.pack(
@@ -254,14 +296,21 @@ class StatusResponseMessage(RadioMessage):
             self.cov_z,
             self.cov_roll,
             self.cov_pitch,
-            self.cov_yaw
+            self.cov_yaw,
+            self._pack_safety()
         )
 
     @classmethod
     def unpack(cls, data: bytes) -> "StatusResponseMessage":
         _, src_id = cls.unpack_header(data)
         offset = cls._HEADER_STRUCT.size
-        values = cls._STRUCT.unpack(data[offset : offset + cls._STRUCT.size])
+        # Vehicles running the older protocol send no safety status field
+        if len(data) - offset >= cls._STRUCT.size:
+            values = cls._STRUCT.unpack(data[offset : offset + cls._STRUCT.size])
+            safety = cls._unpack_safety(values[29])
+        else:
+            values = cls._LEGACY_STRUCT.unpack(data[offset : offset + cls._LEGACY_STRUCT.size])
+            safety = {}
         return cls(
             src_id=src_id,
             x=unpack_fixed32(values[0], cls._POSITION_SCALE),
@@ -292,7 +341,8 @@ class StatusResponseMessage(RadioMessage):
             cov_z=values[25],
             cov_roll=values[26],
             cov_pitch=values[27],
-            cov_yaw=values[28]
+            cov_yaw=values[28],
+            **safety
         )
     
 @dataclass

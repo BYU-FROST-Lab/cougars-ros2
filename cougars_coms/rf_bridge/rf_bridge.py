@@ -10,7 +10,7 @@ from sensor_msgs.msg import BatteryState, FluidPressure
 from dvl_msgs.msg import DVL
 from std_srvs.srv import SetBool
 from std_msgs.msg import Bool
-from cougars_interfaces.msg import ActuatorCommand, MissionFeedback, SystemControl, WaypointFeedback
+from cougars_interfaces.msg import ActuatorCommand, MissionFeedback, SystemControl, SystemStatus, WaypointFeedback
 from geographic_msgs.msg import GeoPoint, RouteNetwork
 
 from digi.xbee.devices import XBeeDevice, RemoteXBeeDevice
@@ -59,6 +59,7 @@ class RFBridge(Node):
         self.latest_pressure = "NO_DATA"
         self.latest_mission_feedback = "NO_DATA"
         self.latest_waypoint_feedback = "NO_DATA"
+        self.latest_safety_status = "NO_DATA"
 
         self.thruster_enable = False
 
@@ -134,6 +135,12 @@ class RFBridge(Node):
             'waypoint_feedback',
             self.waypoint_feedback_callback,
             10)
+
+        self.safety_status_sub = self.create_subscription(
+            SystemStatus,
+            'safety_status',
+            self.safety_status_callback,
+            10)
         # coug_kinematics.cpp is the node that actually drives the fins/thruster; it
         # listens on control/u_cmd for ActuatorCommand messages.
         self.actuator_command_pub = self.create_publisher(ActuatorCommand, 'control/u_cmd', 10)
@@ -186,6 +193,10 @@ class RFBridge(Node):
     def waypoint_feedback_callback(self, msg):
         self.latest_waypoint_feedback = msg
         self.get_logger().debug("Updated waypoint feedback data")
+
+    def safety_status_callback(self, msg):
+        self.latest_safety_status = msg
+        self.get_logger().debug("Updated safety status data")
 
     def pressure_callback(self, msg):
         self.latest_pressure = msg
@@ -282,6 +293,14 @@ class RFBridge(Node):
             status_response.waypoints_completed = self.latest_mission_feedback.waypoints_completed
             status_response.waypoints_total = self.latest_mission_feedback.waypoints_total
             status_response.elapsed_time = self.latest_mission_feedback.elapsed_time
+        if self.latest_safety_status != "NO_DATA":
+            status_response.safety_valid = True
+            status_response.imu_published = self.latest_safety_status.imu_published.data
+            status_response.depth_status = self.latest_safety_status.depth_status.data
+            status_response.gps_status = self.latest_safety_status.gps_status.data
+            status_response.modem_status = self.latest_safety_status.modem_status.data
+            status_response.dvl_status = self.latest_safety_status.dvl_status.data
+            status_response.emergency_status = self.latest_safety_status.emergency_status.data
 
         return status_response.pack()
 
