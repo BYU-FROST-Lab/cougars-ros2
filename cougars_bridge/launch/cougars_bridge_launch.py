@@ -179,7 +179,9 @@ def generate_launch_description():
         seatrac_ahrs_convertor,
         gps_odom,
         static_tf_publisher,
-        imu_source_vehicle
+        imu_source_vehicle,
+        fix_source_vehicle,
+        odom_source_vehicle
     ]
 
     return launch.LaunchDescription(launch_actions)
