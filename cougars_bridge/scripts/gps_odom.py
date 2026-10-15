@@ -2,11 +2,9 @@
 
 import rclpy
 from rclpy.node import Node
-from gps_msgs.msg import GPSFix
-from sensor_msgs.msg import NavSatFix, Imu
+from sensor_msgs.msg import NavSatFix, NavSatStatus, Imu
 from nav_msgs.msg import Odometry
 from geographic_msgs.msg import GeoPoint
-from sbg_driver.msg import SbgGpsPos
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
 import math
 
@@ -17,17 +15,17 @@ class NavSatFixToOdom(Node):
     :author: Braden Meyers
     :date: September 2024
 
-    A simple ROS2 node that subscribes to the extended_fix topic and converts the GPS data to Odometry messages.
+    A simple ROS2 node that subscribes to the fix topic and converts the GPS data to Odometry messages.
     The GPS data is converted from latitude, longitude, and altitude to local Cartesian coordinates.
 
-    Also converts the SBG driver's own GPS position message (sbg/gps_pos) to Odometry in the same way.
+    The GPS source is chosen by the vehicle_fix_source relay, which republishes onto fix
+    (e.g. imu/nav_sat_fix from the SBG driver, or gpsd's fix).
 
     The orientation is taken from the latest /imu/data message and copied into the
     published Odometry pose.
 
     Subscribes:
-        - extended_fix (gps_msgs/msg/GPSFix)
-        - sbg/gps_pos (sbg_driver/msg/SbgGpsPos)
+        - fix (sensor_msgs/msg/NavSatFix)
         - imu/data (sensor_msgs/msg/Imu)
         - origin (geographic_msgs/msg/GeoPoint)
     Publishes:
@@ -49,12 +47,6 @@ class NavSatFixToOdom(Node):
         )
         self.origin_sub = self.create_subscription(GeoPoint, '/origin', self.origin_callback, origin_qos)
 
-        # Subscribe to NavSatFix and GPSFix separately and cache the latest NavSatFix
-        self.last_fix_msg = None
-        self.last_fix_time_ns = None
-        # maximum allowed age of cached covariance (seconds)
-        self.fix_cov_max_age = 3.0
-
         # Cache the latest IMU orientation
         self.last_imu_msg = None
         self.last_imu_time_ns = None
@@ -63,10 +55,7 @@ class NavSatFixToOdom(Node):
 
         # standard rclpy subscriptions (no message_filters)
         self.create_subscription(NavSatFix, 'fix', self.fix_callback, 10)
-        self.create_subscription(GPSFix, 'extended_fix', self.extended_fix_callback, 10)
         self.create_subscription(Imu, 'imu/data', self.imu_callback, 10)
-
-        self.min_sats = 5  # Minimum number of satellites
 
         # Publisher for Odometry
         self.publisher = self.create_publisher(Odometry, 'gps/odom', 10)
@@ -76,11 +65,6 @@ class NavSatFixToOdom(Node):
         self.get_logger().info(
             f"Received origin: lat={msg.latitude}, lon={msg.longitude}, alt={msg.altitude}"
         )
-
-    def fix_callback(self, msg: NavSatFix):
-        # cache the latest NavSatFix (for covariance)
-        self.last_fix_msg = msg
-        self.last_fix_time_ns = self.get_clock().now().nanoseconds
 
     def imu_callback(self, msg: Imu):
         # cache the latest IMU message (for orientation)
@@ -104,23 +88,23 @@ class NavSatFixToOdom(Node):
         else:
             self.get_logger().warn("No cached IMU available, publishing without orientation", throttle_duration_sec=10)
 
-    def extended_fix_callback(self, extended_msg: GPSFix):
+    def fix_callback(self, msg: NavSatFix):
         '''
-        Callback function for the GPSFix subscription.
+        Callback function for the NavSatFix subscription.
         Converts the GPS data to Odometry messages and publishes them.
 
-        :param extended_msg: The GPSFix message received from the extended_fix topic.
+        :param msg: The NavSatFix message received from the fix topic.
         '''
         if self.origin is None:
             self.get_logger().warn("No origin received yet, skipping GPS reading", throttle_duration_sec=10)
             return
 
-        # Filter out bad readings based on the number of satellites (if available)
-        if extended_msg.status.satellites_used < self.min_sats or extended_msg.latitude < 0.1:
-            self.get_logger().warn(f"Bad GPS status, skipping this GPS reading. Sat Used: {extended_msg.status.satellites_used}", throttle_duration_sec=10)
+        # Filter out readings without a position solution
+        if msg.status.status < NavSatStatus.STATUS_FIX or abs(msg.latitude) < 0.1:
+            self.get_logger().warn(f"No GPS fix, skipping this GPS reading. Status: {msg.status.status}", throttle_duration_sec=10)
             return
 
-        if math.isnan(extended_msg.latitude) or math.isnan(extended_msg.longitude) or math.isnan(extended_msg.altitude):
+        if math.isnan(msg.latitude) or math.isnan(msg.longitude) or math.isnan(msg.altitude):
             self.get_logger().warn("NaN detected in GPS position, skipping this reading", throttle_duration_sec=10)
             return
 
@@ -128,41 +112,33 @@ class NavSatFixToOdom(Node):
         x, y = self.CalculateHaversine(
             self.origin.latitude,
             self.origin.longitude,
-            extended_msg.latitude,
-            extended_msg.longitude
+            msg.latitude,
+            msg.longitude
         )
 
-        # Access the altitude (z) value from the GPSFix message
-        z = extended_msg.altitude - self.origin.altitude
+        # Access the altitude (z) value from the NavSatFix message
+        z = msg.altitude - self.origin.altitude
 
         # Fill in the odometry message
         odom = Odometry()
-        odom.header.stamp = extended_msg.header.stamp
+        odom.header.stamp = msg.header.stamp
         odom.header.frame_id = "map"
         odom.child_frame_id = "gnss_link"
         odom.pose.pose.position.x = x
         odom.pose.pose.position.y = y
         odom.pose.pose.position.z = z  # Use the altitude as the z-value
 
-        # Populate covariance from the most recent NavSatFix if available and recent
-        if self.last_fix_msg is not None and self.last_fix_time_ns is not None:
-            age_s = (self.get_clock().now().nanoseconds - self.last_fix_time_ns) / 1e9
-            if age_s <= self.fix_cov_max_age:
-                cov = self.last_fix_msg.position_covariance
-                odom.pose.covariance[0] = cov[0]  # xx
-                odom.pose.covariance[7] = cov[4]  # yy
-                odom.pose.covariance[14] = cov[8]  # zz
-            else:
-                self.get_logger().warn(f"Cached fix too old ({age_s:.1f}s), publishing without covariance", throttle_duration_sec=10)
-        else:
-            self.get_logger().warn("No cached NavSatFix available, publishing without covariance", throttle_duration_sec=10)
+        # NavSatFix covariance is ENU, which matches the map frame
+        cov = msg.position_covariance
+        odom.pose.covariance[0] = cov[0]  # xx
+        odom.pose.covariance[7] = cov[4]  # yy
+        odom.pose.covariance[14] = cov[8]  # zz
 
         # Populate orientation from the most recent IMU message
         self.apply_orientation(odom)
 
         # Publish the odometry message
         self.publisher.publish(odom)
-
 
     def CalculateHaversine(self, refLat, refLong, pointLat, pointLong):
         # convert GPS coordinates to radians
